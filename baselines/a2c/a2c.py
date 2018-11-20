@@ -187,8 +187,8 @@ def learn(
 
 
     # curiosity 
-    curiosity = True
-    # curiosity = False
+    # curiosity = True
+    curiosity = False
 
     set_global_seeds(seed)
 
