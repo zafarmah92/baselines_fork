@@ -243,7 +243,7 @@ def learn(
 
         policy_loss, value_loss, policy_entropy = model.train(obs, states, rewards, masks, actions, values)
         # print(" Does it work ??")
-        icm.train_curiosity_model(obs, next_obs , actions, rewards)
+        one , two , three , _ = icm.train_curiosity_model(obs, next_obs , actions, rewards)
         nseconds = time.time()-tstart
 
         # Calculate the fps (frame per second)
