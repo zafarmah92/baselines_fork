@@ -196,7 +196,7 @@ def learn(
     nenvs = env.num_envs
     policy = build_policy(env, network, **network_kwargs)
 
-    print(" Number of Envs :", nenvs)
+    print(" Called the learn function \n\n\nNumber of Envs :", nenvs)
 
     # Instantiate the model object (that creates step_model and train_model)
     model = Model(policy=policy, env=env, nsteps=nsteps, ent_coef=ent_coef, vf_coef=vf_coef,
@@ -242,7 +242,6 @@ def learn(
 
 
         policy_loss, value_loss, policy_entropy = model.train(obs, states, rewards, masks, actions, values)
-        # print(" Does it work ??")
         one , two , three , _ = icm.train_curiosity_model(obs, next_obs , actions, rewards)
         nseconds = time.time()-tstart
 
