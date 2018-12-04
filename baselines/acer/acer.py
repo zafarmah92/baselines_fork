@@ -16,6 +16,7 @@ from baselines.a2c.utils import EpisodeStats
 from baselines.a2c.utils import get_by_index, check_shape, avg_norm, gradient_add, q_explained_variance
 from baselines.acer.buffer import Buffer
 from baselines.acer.runner import Runner
+from baselines.common.ICM import ICM
 
 # remove last step
 def strip(var, nenvs, nsteps, flat = False):
@@ -236,27 +237,66 @@ class Acer():
         self.episode_stats = EpisodeStats(runner.nsteps, runner.nenv)
         self.steps = None
 
-    def call(self, on_policy):
+    def call(self, curiosity , icm , on_policy):
         runner, model, buffer, steps = self.runner, self.model, self.buffer, self.steps
+
+        print("Acer class -> call ")
+        
+        # if curiosity :
+        #     if on_policy:
+        #         enc_obs, obs, actions, rewards, mus, dones, masks, next_state = runner.run()
+        #         self.episode_stats.feed(rewards, dones)
+        #         if buffer is not None:
+        #             buffer.put(enc_obs, actions, rewards, mus, dones, masks)
+        #     else:
+        #         # get obs, actions, rewards, mus, dones from buffer.
+        #         obs, actions, rewards, mus, dones, masks = buffer.get()
+
+
+        # else :
+
         if on_policy:
-            enc_obs, obs, actions, rewards, mus, dones, masks = runner.run()
+            # if its not empty that next_state is contain states 
+
+            enc_obs, enc_next_obs , obs, actions, rewards, mus, dones, masks, next_states, icm_actions , icm_rewards = runner.run()
+            
             self.episode_stats.feed(rewards, dones)
             if buffer is not None:
-                buffer.put(enc_obs, actions, rewards, mus, dones, masks)
+                buffer.put(enc_obs, enc_next_obs ,actions, rewards, mus, dones, masks)
         else:
             # get obs, actions, rewards, mus, dones from buffer.
-            obs, actions, rewards, mus, dones, masks = buffer.get()
+
+            obs, next_obs ,actions, rewards, mus, dones, masks, next_states = buffer.get()
 
 
         # reshape stuff correctly
+        # print("acer -> observation reshape before ", np.shape(obs) )
         obs = obs.reshape(runner.batch_ob_shape)
+        # next_states = next_states.reshape(runner.batch_ob_shape)
+        # print("acer -> observation reshape after ", np.shape(obs) )
+        # print(" reshape correctly {}  and next states  {} rewards {} ".format( 
+        #     np.shape(obs) ,np.shape(next_states) , np.shape(rewards) )  )
+        
+        print("runner nbactch ", runner.nbatch , " and runner.nact ", runner.nact , " also ",runner.batch_ob_shape[0] )
         actions = actions.reshape([runner.nbatch])
         rewards = rewards.reshape([runner.nbatch])
         mus = mus.reshape([runner.nbatch, runner.nact])
         dones = dones.reshape([runner.nbatch])
         masks = masks.reshape([runner.batch_ob_shape[0]])
 
+        # print(" acer -> train : obs shape  {}  rewards shape  {} action shape  {}".format(
+        #     np.shape(obs) , np.shape(rewards) , np.shape(actions) ))
+
+        print(" ACER model train function called !!!! ")
         names_ops, values_ops = model.train(obs, actions, rewards, dones, mus, model.initial_state, masks, steps)
+
+        if curiosity == True :
+
+            next_states = next_states.reshape(runner.batch_ob_shape)
+            print("Calling function ICM train ")
+            print(" given shapes obs: {}  next obs: {} actions: {} rewards: {}".format(
+                np.shape(obs),np.shape(next_states),np.shape(actions),np.shape(rewards)))
+            one , two , three , _ = icm.train_curiosity_model(obs,next_states,actions,rewards)
 
         if on_policy and (int(steps/runner.nbatch) % self.log_interval == 0):
             logger.record_tabular("total_timesteps", steps)
@@ -340,6 +380,10 @@ def learn(network, env, seed=None, nsteps=20, total_timesteps=int(80e6), q_coef=
 
     '''
 
+    curiosity = True
+    # curiosity = False
+
+
     print("Running Acer Simple")
     print(locals())
     set_global_seeds(seed)
@@ -351,6 +395,23 @@ def learn(network, env, seed=None, nsteps=20, total_timesteps=int(80e6), q_coef=
     ob_space = env.observation_space
     ac_space = env.action_space
 
+    print(" Observation Space :  {}  , action Space : {}".format(ob_space , ac_space))
+
+
+    temp_ob_space = ob_space
+    temp_ac_space = ac_space
+
+
+    temp_nbatch = nsteps
+    temp_nbatch_train = temp_nbatch 
+
+
+    if curiosity == True :
+        make_icm = lambda: ICM(ob_space = temp_ob_space, ac_space = temp_ac_space, max_grad_norm = max_grad_norm, beta = 0.2, icm_lr_scale = 0.5 )
+        icm = make_icm()
+    else :
+        icm = None
+
     nstack = env.nstack
     model = Model(policy=policy, ob_space=ob_space, ac_space=ac_space, nenvs=nenvs, nsteps=nsteps,
                   ent_coef=ent_coef, q_coef=q_coef, gamma=gamma,
@@ -358,8 +419,18 @@ def learn(network, env, seed=None, nsteps=20, total_timesteps=int(80e6), q_coef=
                   total_timesteps=total_timesteps, lrschedule=lrschedule, c=c,
                   trust_region=trust_region, alpha=alpha, delta=delta)
 
-    runner = Runner(env=env, model=model, nsteps=nsteps)
+
+
+    if curiosity == False :
+        print("Runner called without ICM ")
+        runner = Runner(env=env, model=model, nsteps=nsteps)
+    else :
+        print("Runner for ICM called ")
+        runner = Runner(env = env , model = model , nsteps = nsteps , icm= icm)
+
+
     if replay_ratio > 0:
+        print(" Buffer called with env ")
         buffer = Buffer(env=env, nsteps=nsteps, size=buffer_size)
     else:
         buffer = None
@@ -368,7 +439,8 @@ def learn(network, env, seed=None, nsteps=20, total_timesteps=int(80e6), q_coef=
     acer.tstart = time.time()
 
     for acer.steps in range(0, total_timesteps, nbatch): #nbatch samples, 1 on_policy call and multiple off-policy calls
-        acer.call(on_policy=True)
+        acer.call( curiosity , icm ,on_policy=True)
+        print(" What is this value :: ", buffer.has_atleast(replay_start) , " and " ,replay_start)
         if replay_ratio > 0 and buffer.has_atleast(replay_start):
             n = np.random.poisson(replay_ratio)
             for _ in range(n):

@@ -8,6 +8,8 @@ class Buffer(object):
         # self.nh, self.nw, self.nc = env.observation_space.shape
         self.obs_shape = env.observation_space.shape
         self.obs_dtype = env.observation_space.dtype
+        print("Buffer -> Observation shape {} , obsertaion dtype  {}".format(
+            self.obs_shape , self.obs_dtype))
         self.ac_dtype = env.action_space.dtype
         self.nc = self.obs_shape[-1]
         self.nstack = env.nstack
@@ -16,12 +18,13 @@ class Buffer(object):
         self.size = size // (self.nsteps)  # Each loc contains nenv * nsteps frames, thus total buffer is nenv * size frames
 
         # Memory
-        self.enc_obs = None
+        self.enc_obs = None  # Encoded observation 
         self.actions = None
         self.rewards = None
         self.mus = None
         self.dones = None
         self.masks = None
+        self.next_states = None
 
         # Size indexes
         self.next_idx = 0
@@ -44,13 +47,19 @@ class Buffer(object):
         return _stack_obs(enc_obs, dones,
                           nsteps=self.nsteps)
 
-    def put(self, enc_obs, actions, rewards, mus, dones, masks):
+    def put(self, enc_obs, enc_next_obs ,actions, rewards, mus, dones, masks):
         # enc_obs [nenv, (nsteps + nstack), nh, nw, nc]
         # actions, rewards, dones [nenv, nsteps]
         # mus [nenv, nsteps, nact]
-
+        # print("Buffer -> size of making the memory : {}  , shape : {}  " .format( enc_obs.shape , enc_next_obs.shape))
         if self.enc_obs is None:
             self.enc_obs = np.empty([self.size] + list(enc_obs.shape), dtype=self.obs_dtype)
+            self.enc_next_obs = np.empty([self.size] + list(enc_next_obs.shape), dtype=self.obs_dtype)
+            # print( "Next states " , self.next_states )
+            # if (next_states.shape  )
+            # self.next_states = np.empty([self.size] + list(next_states.shape), dtype=self.obs_dtype)
+
+            
             self.actions = np.empty([self.size] + list(actions.shape), dtype=self.ac_dtype)
             self.rewards = np.empty([self.size] + list(rewards.shape), dtype=np.float32)
             self.mus = np.empty([self.size] + list(mus.shape), dtype=np.float32)
@@ -58,6 +67,8 @@ class Buffer(object):
             self.masks = np.empty([self.size] + list(masks.shape), dtype=np.bool)
 
         self.enc_obs[self.next_idx] = enc_obs
+        self.enc_next_obs[self.next_idx] = enc_obs
+        # self.next_states[self.next_idx] = next_states
         self.actions[self.next_idx] = actions
         self.rewards[self.next_idx] = rewards
         self.mus[self.next_idx] = mus
@@ -87,14 +98,19 @@ class Buffer(object):
         envx = np.arange(nenv)
 
         take = lambda x: self.take(x, idx, envx)  # for i in range(nenv)], axis = 0)
+         # nice function shown here 
         dones = take(self.dones)
         enc_obs = take(self.enc_obs)
+        enc_next_obs = take(self.enc_next_obs)
+        # _next_states = take(self.next_states)
         obs = self.decode(enc_obs, dones)
+        next_obs = self.decode(enc_next_obs , dones)
+
         actions = take(self.actions)
         rewards = take(self.rewards)
         mus = take(self.mus)
         masks = take(self.masks)
-        return obs, actions, rewards, mus, dones, masks
+        return obs, next_obs ,actions, rewards, mus, dones, masks  # _next_states
 
 
 
