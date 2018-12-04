@@ -66,7 +66,7 @@ class Runner(AbstractEnvRunner):
             # self.env.render()
 
             if curiosity == True :
-                icm_next_states = self.obs[:]
+                icm_next_states = obs[:]
                 # print("step rewards ",rewards)
                 # rewards = 0.0
                 # rewards = []
@@ -99,6 +99,7 @@ class Runner(AbstractEnvRunner):
 
         # Batch of steps to batch of rollouts
         mb_obs = np.asarray(mb_obs, dtype=self.ob_dtype).swapaxes(1, 0).reshape(self.batch_ob_shape)
+        print(" Batch op shape a2c : ",self.batch_ob_shape)
         mb_next_states = np.asarray(mb_next_states , dtype=self.ob_dtype).swapaxes(1,0).reshape(self.batch_ob_shape)
         # print("Rewards THat give errors :: ",mb_rewards)
         mb_rewards = np.asarray(mb_rewards, dtype=np.float32).swapaxes(1, 0)

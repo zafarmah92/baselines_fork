@@ -280,23 +280,33 @@ class Acer():
         print("runner nbactch ", runner.nbatch , " and runner.nact ", runner.nact , " also ",runner.batch_ob_shape[0] )
         actions = actions.reshape([runner.nbatch])
         rewards = rewards.reshape([runner.nbatch])
+
         mus = mus.reshape([runner.nbatch, runner.nact])
         dones = dones.reshape([runner.nbatch])
         masks = masks.reshape([runner.batch_ob_shape[0]])
+
 
         # print(" acer -> train : obs shape  {}  rewards shape  {} action shape  {}".format(
         #     np.shape(obs) , np.shape(rewards) , np.shape(actions) ))
 
         print(" ACER model train function called !!!! ")
+        print(" Before train size  obs {} actions {} rewards {} dones {} masks {}".format(
+            np.shape(obs), np.shape(actions) , np.shape(rewards) , np.shape(dones) , np.shape(masks)))
         names_ops, values_ops = model.train(obs, actions, rewards, dones, mus, model.initial_state, masks, steps)
 
         if curiosity == True :
 
+            icm_rewards = icm_rewards.reshape([runner.batch_ob_shape[0]])
+            icm_actions =  icm_actions.reshape([runner.batch_ob_shape[0]])
             next_states = next_states.reshape(runner.batch_ob_shape)
             print("Calling function ICM train ")
             print(" given shapes obs: {}  next obs: {} actions: {} rewards: {}".format(
                 np.shape(obs),np.shape(next_states),np.shape(actions),np.shape(rewards)))
-            one , two , three , _ = icm.train_curiosity_model(obs,next_states,actions,rewards)
+            
+            print(" Updated ::::  given shapes obs: {}  next obs: {} actions: {} rewards: {}".format(
+                np.shape(obs),np.shape(next_states),np.shape(icm_actions),np.shape(icm_rewards)))
+            
+            one , two , three , _ = icm.train_curiosity_model(obs,next_states,icm_actions,icm_rewards)
 
         if on_policy and (int(steps/runner.nbatch) % self.log_interval == 0):
             logger.record_tabular("total_timesteps", steps)
@@ -402,7 +412,7 @@ def learn(network, env, seed=None, nsteps=20, total_timesteps=int(80e6), q_coef=
     temp_ac_space = ac_space
 
 
-    temp_nbatch = nsteps
+    temp_nbatch = nenvs * nsteps 
     temp_nbatch_train = temp_nbatch 
 
 
@@ -440,10 +450,10 @@ def learn(network, env, seed=None, nsteps=20, total_timesteps=int(80e6), q_coef=
 
     for acer.steps in range(0, total_timesteps, nbatch): #nbatch samples, 1 on_policy call and multiple off-policy calls
         acer.call( curiosity , icm ,on_policy=True)
-        print(" What is this value :: ", buffer.has_atleast(replay_start) , " and " ,replay_start)
+        # print(" What is this value :: ", buffer.has_atleast(replay_start) , " and " ,replay_start)
         if replay_ratio > 0 and buffer.has_atleast(replay_start):
             n = np.random.poisson(replay_ratio)
             for _ in range(n):
-                acer.call(on_policy=False)  # no simulation steps in this
+                acer.call(curiosity , icm , on_policy=False)  # no simulation steps in this
 
     return model
