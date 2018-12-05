@@ -17,8 +17,8 @@ class Runner(AbstractEnvRunner):
 
         self.batch_ob_shape = (nenv*(nsteps+1),) + env.observation_space.shape # 84 but it should be 80
         
-        print("Runner -> self batch_ob_shape ", self.batch_ob_shape)
-        print(" Runner -> nenv {} nsteps  {} env.observation_space.shape {}".format( nenv ,nsteps, env.observation_space.shape ))
+        # print("Runner -> self batch_ob_shape ", self.batch_ob_shape)
+        # print(" Runner -> nenv {} nsteps  {} env.observation_space.shape {}".format( nenv ,nsteps, env.observation_space.shape ))
         self.obs = env.reset()
         # observation type
         self.obs_dtype = env.observation_space.dtype
@@ -36,7 +36,7 @@ class Runner(AbstractEnvRunner):
         enc_next_obs = np.split(self.env.stackedobs, self.env.nstack, axis=-1)
 
 
-        print("run function : encoded obsershape ",np.shape(enc_obs) )
+        # print("run function : encoded obsershape ",np.shape(enc_obs) )
         # enc_next_obs = np.split(self.env.stackedobs , self.env.env.nstack , axis=-1)
         # enc_next_obs = enc_obs
         # print("run function : encoded obsershape ",np.shape(enc_next_obs) )
@@ -84,14 +84,14 @@ class Runner(AbstractEnvRunner):
         mb_next_states.append(np.copy(self.obs)) #s_t+1
         
         # print("acer runner  -> encoded observation : ",enc_obs)
-        mb_dones.append(self.dones)
+        mb_dones.append(self.dones) # s_t+1
 
         icm_actions = mb_actions 
         icm_rewards = mb_rewards
 
 
         enc_obs = np.asarray(enc_obs, dtype=self.obs_dtype).swapaxes(1, 0)
-        print("acer runner  -> encoded observation : ", enc_obs.shape)
+        # print("acer runner  -> encoded observation : ", enc_obs.shape)
 
         enc_next_obs = np.asarray(enc_next_obs, dtype=self.obs_dtype).swapaxes(1, 0)
         mb_obs = np.asarray(mb_obs, dtype=self.obs_dtype).swapaxes(1, 0)
@@ -119,8 +119,8 @@ class Runner(AbstractEnvRunner):
         # When pulling from buffer, arrays will now be reshaped in place, preventing a deep copy.
 
         # print(" Runner -> shape of the following rewards {}  dones {}".format(mb_rewards.shape , mb_dones.shape))
-        print("sent parameters enc obs {} enc next obs {} mb_obs {} actions {} mb_rewards {} ".format( 
-            enc_obs.shape , enc_next_obs.shape ,mb_obs.shape, mb_actions.shape, mb_rewards.shape))
+        # print("sent parameters enc obs {} enc next obs {} mb_obs {} actions {} mb_rewards {} ".format( 
+        #     enc_obs.shape , enc_next_obs.shape ,mb_obs.shape, mb_actions.shape, mb_rewards.shape))
         
         return enc_obs, enc_next_obs ,mb_obs, mb_actions, mb_rewards, mb_mus, mb_dones, mb_masks, mb_next_states, icm_actions , icm_rewards
 
