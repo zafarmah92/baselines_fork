@@ -77,6 +77,9 @@ def learn(*, network, env, total_timesteps, eval_env = None, seed=None, nsteps=2
 
     '''
 
+    print(" PPO2 learning function called ")
+
+
     set_global_seeds(seed)
 
     if isinstance(lr, float): lr = constfn(lr)

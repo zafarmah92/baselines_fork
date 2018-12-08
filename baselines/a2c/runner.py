@@ -14,7 +14,7 @@ class Runner(AbstractEnvRunner):
     run():
     - Make a mini batch of experiences
     """
-    def __init__(self, env, model, icm=None ,nsteps=5, gamma=0.99):
+    def __init__(self, env, model, icm ,nsteps=5, gamma=0.99):
         super().__init__(env=env, model=model, icm=icm  ,nsteps=nsteps)
         
         self.gamma = gamma
@@ -26,8 +26,8 @@ class Runner(AbstractEnvRunner):
 
     def run(self):
         # We initialize the lists that will contain the mb of experiences
-        # curiosity = True
-        curiosity = False
+        curiosity = True
+        # curiosity = False
 
         mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_next_states = [],[],[],[],[],[]
         mb_states = self.states
@@ -61,7 +61,10 @@ class Runner(AbstractEnvRunner):
                 # print("forward model has states of nontype ")
                 # pass
 
+
+
             obs, rewards, dones, _ = self.env.step(actions)
+            # This step function is called in the monitor file 
 
             # self.env.render()
 
@@ -77,7 +80,10 @@ class Runner(AbstractEnvRunner):
                 #     print(np.shape(tf.reshape(i_state , [1,np.shape(i_state)])))
                 #     rewards.append(self.icm.calculate_intrinsic_reward(i_state,i_next_state,i_action))
                     
+                # print("Forwarded states ")
+                # print(" s_t {} s_t+1 {} actions {}".format(len(icm_states) , len(icm_next_states) , len(actions)))
                 rewards = self.icm.calculate_intrinsic_reward(icm_states,icm_next_states,actions)
+                # print("received Reward ",len(rewards))
                 # print("passed evn received rewards {} , state s_t {} , s_t+1 {} "
                 #     .format(rewards ,np.shape(icm_states) , np.shape(icm_next_states)))
                 
@@ -99,7 +105,7 @@ class Runner(AbstractEnvRunner):
 
         # Batch of steps to batch of rollouts
         mb_obs = np.asarray(mb_obs, dtype=self.ob_dtype).swapaxes(1, 0).reshape(self.batch_ob_shape)
-        print(" Batch op shape a2c : ",self.batch_ob_shape)
+        # print(" Batch op shape a2c : ",self.batch_ob_shape)
         mb_next_states = np.asarray(mb_next_states , dtype=self.ob_dtype).swapaxes(1,0).reshape(self.batch_ob_shape)
         # print("Rewards THat give errors :: ",mb_rewards)
         mb_rewards = np.asarray(mb_rewards, dtype=np.float32).swapaxes(1, 0)

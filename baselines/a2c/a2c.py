@@ -70,14 +70,15 @@ class Model(object):
 
         # Update parameters using loss
         # 1. Get the model parameters
+        # print()
         params = find_trainable_variables("a2c_model")
 
         # 2. Calculate the gradients
         grads = tf.gradients(loss, params)
         if max_grad_norm is not None:
             # Clip the gradients (normalize)
-            grads, grad_norm = tf.clip_by_global_norm(grads, max_grad_norm)
-        grads = list(zip(grads, params))
+            grads, grad_norm = tf.clip_by_global_norm(grads, max_grad_norm)        
+            grads = list(zip(grads, params))
         # zip aggregate each gradient with parameters associated
         # For instance zip(ABCD, xyza) => Ax, By, Cz, Da
 
@@ -187,8 +188,8 @@ def learn(
 
 
     # curiosity 
-    # curiosity = True
-    curiosity = False
+    curiosity = True
+    # curiosity = False
 
     set_global_seeds(seed)
 
@@ -237,13 +238,21 @@ def learn(
     for update in range(1, total_timesteps//nbatch+1):
         # Get mini batch of experiences
         obs, states, rewards, masks, actions, values, next_obs = runner.run()
-        # print(" update_step : {}, obs : {}, next_obs : {}, action {} reward {}".format(
-        #     update,np.shape(obs), np.shape(next_obs) , np.shape(actions), np.shape(rewards)))
+        
+
+        # print(" update_step : {} -> obs : {}, action {} reward {} values {}".format(
+            # update,np.shape(obs), np.shape(actions), np.shape(rewards) , np.shape(values)))
+
+
 
 
         policy_loss, value_loss, policy_entropy = model.train(obs, states, rewards, masks, actions, values)
+        # print("Model train values ")
+        # print( " policy loss {} policy entropy {} value loss {}".format(policy_loss , policy_entropy , value_loss))
         if curiosity == True :
-            one , two , three , _ = icm.train_curiosity_model(obs, next_obs , actions, rewards)
+            forwardLoss , inverseLoss , icm_loss , _ = icm.train_curiosity_model(obs, next_obs , actions, rewards)
+            # print("ForwardLoss : {} inverseLoss : {} ICM Loss {} ".format(len(forwardLoss) , inverseLoss , len(icm_loss)))
+
         nseconds = time.time()-tstart
 
         # Calculate the fps (frame per second)
@@ -254,12 +263,22 @@ def learn(
             # Calculates if value function is a good predicator of the returns (ev > 1)
             # or if it's just worse than predicting nothing (ev =< 0)
 
+            print("Tabular Update :: ")
+            # print()
             ev = explained_variance(values, rewards)
+            # logger.record_tabular("ForwardLoss")
+
+            if curiosity == True:
+
+                logger.record_tabular("Intrensic reward ", np.mean(forwardLoss))
+                logger.record_tabular("ICM loss ",np.mean(icm_loss))
+                logger.record_tabular("Inverse Loss" , inverseLoss)
 
             logger.record_tabular("nupdates", update)
             logger.record_tabular("total_timesteps", update*nbatch)
             logger.record_tabular("fps", fps)
             logger.record_tabular("policy_entropy", float(policy_entropy))
+            logger.record_tabular("policy_loss",float(policy_loss))
             logger.record_tabular("value_loss", float(value_loss))
             logger.record_tabular("explained_variance", float(ev))
             logger.dump_tabular()

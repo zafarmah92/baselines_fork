@@ -6,7 +6,7 @@ from gym import spaces
 
 class Runner(AbstractEnvRunner):
 
-    def __init__(self, env, model,nsteps , icm ):
+    def __init__(self, env, model,nsteps , icm = None):
         super().__init__(env=env, model=model, icm=icm, nsteps=nsteps)
         assert isinstance(env.action_space, spaces.Discrete), 'This ACER implementation works only with discrete action spaces!'
         assert isinstance(env, VecFrameStack)
@@ -29,8 +29,8 @@ class Runner(AbstractEnvRunner):
 
 
     def run(self):
-        # curiosity = False
-        curiosity = True
+        curiosity = False
+        # curiosity = True
         # enc_obs = np.split(self.obs, self.nstack, axis=3)  # so now list of obs steps
         enc_obs = np.split(self.env.stackedobs, self.env.nstack, axis=-1)
         enc_next_obs = np.split(self.env.stackedobs, self.env.nstack, axis=-1)

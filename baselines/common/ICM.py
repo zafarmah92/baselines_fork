@@ -61,12 +61,14 @@ class ICM(object):
         # Squeeze the labels (required)
         labels = tf.cast(action, tf.int32)
 
-        self.inv_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=pred_actions_logits, labels=labels), name="inverse_loss")
+        print("prediction pred_actions_logits")
+
+        self.inv_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=pred_actions_logits, labels=labels),name="inverse_loss")
 
         # Foward Loss
         # LF = 1/2 || pred_phi_next_state - phi_next_state ||
         # TODO 0.5 * ?
-        self.forw_loss = tf.reduce_mean(tf.square(tf.subtract(pred_phi_next_state, phi_next_state)), axis=-1,name="forward_loss")
+        self.forw_loss = tf.reduce_mean(tf.square(tf.subtract(pred_phi_next_state, phi_next_state)) , axis=-1,name="forward_loss")
 
         # Todo predictor lr scale ?
         # ICM_LOSS = [(1 - beta) * LI + beta * LF ] * Predictor_Lr_scale
@@ -211,7 +213,7 @@ class ICM(object):
         sess = tf.get_default_session()
         feed = {self.state_: states , self.next_state_ : next_states , self.action_ : actions, self.R :rewards }
 
-        return sess.run((self.forw_loss, self.forw_loss, self.icm_loss, self._icm_train), feed_dict = feed)
+        return sess.run((self.forw_loss, self.inv_loss, self.icm_loss, self._icm_train), feed_dict = feed)
         # pass
 
 

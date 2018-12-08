@@ -329,7 +329,7 @@ class Acer():
 
 def learn(network, env, seed=None, nsteps=20, total_timesteps=int(80e6), q_coef=0.5, ent_coef=0.01,
           max_grad_norm=10, lr=7e-4, lrschedule='linear', rprop_epsilon=1e-5, rprop_alpha=0.99, gamma=0.99,
-          log_interval=100, buffer_size=50000, replay_ratio=4, replay_start=1000, c=10.0,
+          log_interval=100, buffer_size=50000, replay_ratio=4, replay_start=10000, c=10.0,
           trust_region=True, alpha=0.99, delta=1, load_path=None, **network_kwargs):
 
     '''
@@ -396,8 +396,8 @@ def learn(network, env, seed=None, nsteps=20, total_timesteps=int(80e6), q_coef=
 
     '''
 
-    curiosity = True
-    # curiosity = False
+    # curiosity = True
+    curiosity = False
 
 
     print("Running Acer Simple")
