@@ -8,6 +8,7 @@ from baselines.common import set_global_seeds, explained_variance
 from baselines.common import tf_util
 from baselines.common.policies import build_policy
 
+from collections import deque
 
 from baselines.a2c.utils import Scheduler, find_trainable_variables
 from baselines.a2c.runner import Runner
@@ -30,13 +31,16 @@ class Model(object):
         save/load():
         - Save load the model
     """
-    def __init__(self, policy, env, nsteps,
+    def __init__(self, policy, env, nsteps,icm,
             ent_coef=0.01, vf_coef=0.5, max_grad_norm=0.5, lr=7e-4,
             alpha=0.99, epsilon=1e-5, total_timesteps=int(80e6), lrschedule='linear'):
 
         sess = tf_util.get_session()
         nenvs = env.num_envs
         nbatch = nenvs*nsteps
+
+        self.global_step = tf.get_variable("global_step", [], tf.int32, initializer=tf.constant_initializer(0, dtype=tf.int32),
+                                                   trainable=False)
 
 
         with tf.variable_scope('a2c_model', reuse=tf.AUTO_REUSE):
@@ -74,40 +78,73 @@ class Model(object):
         params = find_trainable_variables("a2c_model")
 
         # 2. Calculate the gradients
-        grads = tf.gradients(loss, params)
+        grads = tf.gradients(loss, params)  #>>>>
+        # this is on 
         if max_grad_norm is not None:
             # Clip the gradients (normalize)
             grads, grad_norm = tf.clip_by_global_norm(grads, max_grad_norm)        
             grads = list(zip(grads, params))
+        
+        ### testing 
+
+        if icm is not None :
+
+            grads_and_vars = grads + icm.pred_grads_and_vars
+            print("Gradients added ")
+            print("independetly there shape were a2c : {} icm :{} and together {} ".format(np.shape(grads),np.shape(icm.pred_grads_and_vars),
+                np.shape(grads_and_vars)))
+
+
+        # >>>>>>> So far this point is good now with ICM 
         # zip aggregate each gradient with parameters associated
         # For instance zip(ABCD, xyza) => Ax, By, Cz, Da
 
         # 3. Make op for one policy and value update step of A2C
         trainer = tf.train.RMSPropOptimizer(learning_rate=LR, decay=alpha, epsilon=epsilon)
 
-        _train = trainer.apply_gradients(grads)
+        # _train = trainer.apply_gradients(grads)
+        _train = trainer.apply_gradients(grads_and_vars)
 
         lr = Scheduler(v=lr, nvalues=total_timesteps, schedule=lrschedule)
 
-        def train(obs, states, rewards, masks, actions, values):
+        def train(obs, states, rewards, masks, actions, values , icm, next_obs):
             # Here we calculate advantage A(s,a) = R + yV(s') - V(s)
             # rewards = R + yV(s')
+            print("called Trained function ")
             advs = rewards - values
             for step in range(len(obs)):
                 cur_lr = lr.value()
 
 
-
-            td_map = {train_model.X:obs, A:actions, ADV:advs, R:rewards, LR:cur_lr}
+            if icm is None :    
+                td_map = {train_model.X:obs, A:actions, ADV:advs, R:rewards, LR:cur_lr}
+            else :
+                print("curiosity Td Map ")
+                td_map = {train_model.X:obs, A:actions, ADV:advs, R:rewards, LR:cur_lr , 
+                icm.state_:obs, icm.next_state_ : next_obs , icm.action_ : actions , icm.R :rewards }
             # cnn and cnn lstm policy 
             if states is not None:
                 td_map[train_model.S] = states
                 td_map[train_model.M] = masks
-            policy_loss, value_loss, policy_entropy, _ = sess.run(
-                [pg_loss, vf_loss, entropy, _train],
-                td_map
-            )
-            return policy_loss, value_loss, policy_entropy
+            
+            if icm is None :   
+                policy_loss, value_loss, policy_entropy, _ = sess.run(
+                    [pg_loss, vf_loss, entropy, _train],
+                    td_map
+
+                )
+
+                return policy_loss, value_loss, policy_entropy
+            else :
+                print("Session Run with curiosity")
+                policy_loss, value_loss, policy_entropy,forward_loss , inverse_loss , icm_loss, _ = sess.run(
+                    [pg_loss, vf_loss, entropy, icm.forw_loss , icm.inv_loss, icm.icm_loss ,_train],
+                    td_map
+
+                )
+                return policy_loss, value_loss, policy_entropy,forward_loss , inverse_loss , icm_loss
+
+
 
 
         self.train = train
@@ -200,13 +237,7 @@ def learn(
     print(" Called the learn function \n\n\nNumber of Envs :", nenvs)
 
     # Instantiate the model object (that creates step_model and train_model)
-    model = Model(policy=policy, env=env, nsteps=nsteps, ent_coef=ent_coef, vf_coef=vf_coef,
-        max_grad_norm=max_grad_norm, lr=lr, alpha=alpha, epsilon=epsilon, total_timesteps=total_timesteps, lrschedule=lrschedule)
-    if load_path is not None:
-        model.load(load_path)
 
-
-    # instentiate curiosity objects 
 
     temp_ob_space = env.observation_space
     temp_ac_space = env.action_space
@@ -214,15 +245,29 @@ def learn(
 
     temp_nbatch = nenvs * nsteps
     temp_nbatch_train = temp_nbatch 
+    epinfobuf = deque(maxlen=100)
 
 
     if curiosity == True :
         make_icm = lambda: ICM(ob_space = temp_ob_space, ac_space = temp_ac_space, max_grad_norm = max_grad_norm, beta = 0.2, icm_lr_scale = 0.5 )
         icm = make_icm()
 
+        model = Model(policy=policy, env=env, nsteps=nsteps, icm=icm , ent_coef=ent_coef, vf_coef=vf_coef,
+            max_grad_norm=max_grad_norm, lr=lr, alpha=alpha, epsilon=epsilon, total_timesteps=total_timesteps, lrschedule=lrschedule)
+    else :
+        model = Model(policy=policy, env=env, nsteps=nsteps,icm=None, ent_coef=ent_coef, vf_coef=vf_coef,
+            max_grad_norm=max_grad_norm, lr=lr, alpha=alpha, epsilon=epsilon, total_timesteps=total_timesteps, lrschedule=lrschedule)
+    if load_path is not None:
+        model.load(load_path)
+
+
+    # instentiate curiosity objects 
+
+
     if curiosity == False :
         # instentiate runner object
         runner = Runner(env, model, nsteps=nsteps, gamma=gamma)
+
         # env.render()
     else :
         print("runner from this line called ")
@@ -237,20 +282,26 @@ def learn(
 
     for update in range(1, total_timesteps//nbatch+1):
         # Get mini batch of experiences
-        obs, states, rewards, masks, actions, values, next_obs = runner.run()
+        obs, states, rewards, masks, actions, values, next_obs, extrinsic_rewards , epinfos  = runner.run()
+
+
         
+        epinfobuf.extend(epinfos)
 
         # print(" update_step : {} -> obs : {}, action {} reward {} values {}".format(
             # update,np.shape(obs), np.shape(actions), np.shape(rewards) , np.shape(values)))
 
 
-
-
-        policy_loss, value_loss, policy_entropy = model.train(obs, states, rewards, masks, actions, values)
+        if curiosity == True :
+            print("Calling Train with curiosity")
+            policy_loss, value_loss, policy_entropy,forwardLoss , inverseLoss , icm_loss = model.train(obs, states, rewards, masks, actions, values , icm , next_obs)
+            print("Returned After curiosity")
+        else :
+            policy_loss, value_loss, policy_entropy = model.train(obs, states, rewards, masks, actions, values, icm=None, next_obs=None)
         # print("Model train values ")
         # print( " policy loss {} policy entropy {} value loss {}".format(policy_loss , policy_entropy , value_loss))
-        if curiosity == True :
-            forwardLoss , inverseLoss , icm_loss , _ = icm.train_curiosity_model(obs, next_obs , actions, rewards)
+        
+            # forwardLoss , inverseLoss , icm_loss , _ = icm.train_curiosity_model(obs, next_obs , actions, rewards)
             # print("ForwardLoss : {} inverseLoss : {} ICM Loss {} ".format(len(forwardLoss) , inverseLoss , len(icm_loss)))
 
         nseconds = time.time()-tstart
@@ -280,7 +331,12 @@ def learn(
             logger.record_tabular("policy_entropy", float(policy_entropy))
             logger.record_tabular("policy_loss",float(policy_loss))
             logger.record_tabular("value_loss", float(value_loss))
+
+            logger.record_tabular('eprewmea', safemean([epinfo['r'] for epinfo in epinfobuf]))
             logger.record_tabular("explained_variance", float(ev))
             logger.dump_tabular()
     return model
 
+
+def safemean(xs):
+    return np.nan if len(xs) == 0 else np.mean(xs)

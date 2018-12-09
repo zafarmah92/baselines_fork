@@ -29,8 +29,9 @@ class Runner(AbstractEnvRunner):
         curiosity = True
         # curiosity = False
 
-        mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_next_states = [],[],[],[],[],[]
+        mb_obs, mb_rewards, mb_extrinsic_reward, mb_actions, mb_values, mb_dones, mb_next_states = [],[],[],[],[],[],[]
         mb_states = self.states
+        epinfos=[]
         for n in range(self.nsteps):
             # Given observations, take action and value (V(s))
             # We already have self.obs because Runner superclass run self.obs[:] = env.reset() on init
@@ -63,7 +64,13 @@ class Runner(AbstractEnvRunner):
 
 
 
-            obs, rewards, dones, _ = self.env.step(actions)
+            obs, rewards, dones, info = self.env.step(actions)
+            mb_extrinsic_reward.append(rewards)
+            for info in info :
+                maybeepinfo = info.get('episode')
+                if maybeepinfo: epinfos.append(maybeepinfo)
+
+
             # This step function is called in the monitor file 
 
             # self.env.render()
@@ -155,4 +162,4 @@ class Runner(AbstractEnvRunner):
         mb_masks = mb_masks.flatten()
         # print(" Mini batch shapes  obs {} , states  {} , rewards {} ".format(np.shape(mb_obs) , type(mb_states) , np.shape(mb_rewards)))
         
-        return mb_obs, mb_states, mb_rewards, mb_masks, mb_actions, mb_values, mb_next_states
+        return mb_obs, mb_states, mb_rewards, mb_masks, mb_actions, mb_values, mb_next_states, mb_extrinsic_reward , epinfos
