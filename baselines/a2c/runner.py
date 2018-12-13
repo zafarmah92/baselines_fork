@@ -14,7 +14,7 @@ class Runner(AbstractEnvRunner):
     run():
     - Make a mini batch of experiences
     """
-    def __init__(self, env, model, icm ,nsteps=5, gamma=0.99):
+    def __init__(self, env, model, icm=None ,nsteps=5, gamma=0.99):
         super().__init__(env=env, model=model, icm=icm  ,nsteps=nsteps)
         
         self.gamma = gamma
@@ -26,8 +26,8 @@ class Runner(AbstractEnvRunner):
 
     def run(self):
         # We initialize the lists that will contain the mb of experiences
-        curiosity = True
-        # curiosity = False
+        # curiosity = True
+        curiosity = False
 
         mb_obs, mb_rewards, mb_extrinsic_reward, mb_actions, mb_values, mb_dones, mb_next_states = [],[],[],[],[],[],[]
         mb_states = self.states

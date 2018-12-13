@@ -89,7 +89,7 @@ class Model(object):
 
         if icm is not None :
 
-            grads_and_vars = grads + icm.pred_grads_and_vars
+            grads = grads + icm.pred_grads_and_vars
             print("Gradients added ")
             print("independetly there shape were a2c : {} icm :{} and together {} ".format(np.shape(grads),np.shape(icm.pred_grads_and_vars),
                 np.shape(grads_and_vars)))
@@ -103,14 +103,14 @@ class Model(object):
         trainer = tf.train.RMSPropOptimizer(learning_rate=LR, decay=alpha, epsilon=epsilon)
 
         # _train = trainer.apply_gradients(grads)
-        _train = trainer.apply_gradients(grads_and_vars)
-
+        _train = trainer.apply_gradients(grads
+)
         lr = Scheduler(v=lr, nvalues=total_timesteps, schedule=lrschedule)
 
         def train(obs, states, rewards, masks, actions, values , icm, next_obs):
             # Here we calculate advantage A(s,a) = R + yV(s') - V(s)
             # rewards = R + yV(s')
-            print("called Trained function ")
+            # print("called Trained function ")
             advs = rewards - values
             for step in range(len(obs)):
                 cur_lr = lr.value()
@@ -225,8 +225,8 @@ def learn(
 
 
     # curiosity 
-    curiosity = True
-    # curiosity = False
+    # curiosity = True
+    curiosity = False
 
     set_global_seeds(seed)
 
@@ -266,7 +266,7 @@ def learn(
 
     if curiosity == False :
         # instentiate runner object
-        runner = Runner(env, model, nsteps=nsteps, gamma=gamma)
+        runner = Runner(env, model, nsteps=nsteps, icm=None, gamma=gamma)
 
         # env.render()
     else :
