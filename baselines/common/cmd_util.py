@@ -74,21 +74,35 @@ class AtariRescale42x42(gym.ObservationWrapper):
 def make_env(env_id, env_type, subrank=0, seed=None, reward_scale=1.0, gamestate=None, wrapper_kwargs=None):
     mpi_rank = MPI.COMM_WORLD.Get_rank() if MPI else 0
     env = gym.make(env_id)
+    # env = Downsample(env)
+    # env = Rgb2gray(env)
+
     print(" Make ENV :::: " , logger.get_dir()  , " MPI rank :: " , str(mpi_rank))
+    
+    env.seed(seed + subrank if seed is not None else None)
+
     env = Monitor(env , 
                   logger.get_dir() and os.path.join(logger.get_dir(), str(mpi_rank) + '.' + str(subrank)),
                   allow_early_resets=True )
 
     # preprocess frames 
+    print("Calling the wrap deep mind ")
+    # Already preprocessing the frames 
+    env = wrap_deepmind(env, **wrapper_kwargs)
+    # env = Downsample(env)
+    # env = Rgb2gray(env)
 
     # env = AtariRescale42x42(env)
-    env = Downsample(env)
-    env = Rgb2gray(env)
+    # env = Downsample(env)
+    # env = Rgb2gray(env)
+
 
     # print("preprocessing Done ")
 
     # if env_type == 'atari':
     #     env = wrap_deepmind(env, **wrapper_kwargs)
+    if reward_scale != 1:
+        env = retro_wrappers.RewardScaler(env, reward_scale)
     return env
 
 

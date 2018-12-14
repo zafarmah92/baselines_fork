@@ -223,6 +223,7 @@ def make_retro(*, game, state, max_episode_steps, **kwargs):
     return env
 
 def wrap_deepmind_retro(env, scale=True, frame_stack=4):
+    print("\n\n\n Is this retro called \n\n\n")
     """
     Configure environment for retro games, using config similar to DeepMind-style Atari in wrap_deepmind
     """
