@@ -240,7 +240,7 @@ class Acer():
     def call(self, curiosity , icm , on_policy):
         runner, model, buffer, steps = self.runner, self.model, self.buffer, self.steps
 
-        print("Acer class -> call ")
+        # print("Acer class -> call ")
         
         # if curiosity :
         #     if on_policy:
@@ -257,7 +257,7 @@ class Acer():
 
         if on_policy:
             # if its not empty that next_state is contain states
-            print("\n\n\n !!! its on policy !!! \n\n\n") 
+            # print("\n\n\n !!! its on policy !!! \n\n\n") 
 
             enc_obs, enc_next_obs , obs, actions, rewards, mus, dones, masks, next_states, icm_actions , icm_rewards = runner.run()
             
@@ -266,7 +266,7 @@ class Acer():
                 buffer.put(enc_obs, enc_next_obs ,actions, rewards, mus, dones, masks, icm_actions , icm_rewards)
         else:
             # get obs, actions, rewards, mus, dones from buffer.
-            print("\n\n~~~~ now its off Policy ~~~\n\n")
+            # print("\n\n~~~~ now its off Policy ~~~\n\n")
             obs, next_obs ,actions, rewards, mus, dones, masks, icm_actions, icm_rewards = buffer.get()
 
 
@@ -290,9 +290,9 @@ class Acer():
         # print(" acer -> train : obs shape  {}  rewards shape  {} action shape  {}".format(
         #     np.shape(obs) , np.shape(rewards) , np.shape(actions) ))
 
-        print(" ACER model train function called !!!! ")
-        print(" Before train size  obs {} actions {} rewards {} dones {} masks {}".format(
-            np.shape(obs), np.shape(actions) , np.shape(rewards) , np.shape(dones) , np.shape(masks)))
+        # print(" ACER model train function called !!!! ")
+        # print(" Before train size  obs {} actions {} rewards {} dones {} masks {}".format(
+            # np.shape(obs), np.shape(actions) , np.shape(rewards) , np.shape(dones) , np.shape(masks)))
    
 
         names_ops, values_ops = model.train(obs, actions, rewards, dones, mus, model.initial_state, masks, steps)
@@ -457,7 +457,7 @@ def learn(network, env, seed=None, nsteps=20, total_timesteps=int(80e6), q_coef=
     for acer.steps in range(0, total_timesteps, nbatch): #nbatch samples, 1 on_policy call and multiple off-policy calls
         acer.call( curiosity , icm ,on_policy=True)
         # print(" What is this value :: ", buffer.has_atleast(replay_start) , " and " ,replay_start)
-        print(" Replay Ratio : {}, buffer has atleast {}, replay_start {} ".format(replay_ratio , buffer.has_atleast(replay_start) , replay_start ) )
+        # print(" Replay Ratio : {}, buffer has atleast {}, replay_start {} ".format(replay_ratio , buffer.has_atleast(replay_start) , replay_start ) )
         if replay_ratio > 0 and buffer.has_atleast(replay_start):
             n = np.random.poisson(replay_ratio)
             for _ in range(n):
