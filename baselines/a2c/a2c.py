@@ -284,7 +284,7 @@ def learn(
 
     for update in range(1, total_timesteps//nbatch+1):
         # Get mini batch of experiences
-        obs, states, rewards, masks, actions, values, next_obs, extrinsic_rewards = runner.run()
+        obs, states, rewards, masks, actions, values, next_obs = runner.run()
 
 
         

@@ -29,7 +29,7 @@ class Runner(AbstractEnvRunner):
         # curiosity = True
         curiosity = False
 
-        mb_obs, mb_rewards, mb_extrinsic_reward, mb_actions, mb_values, mb_dones, mb_next_states = [],[],[],[],[],[],[]
+        mb_obs, mb_rewards, mb_actions, mb_values, mb_dones, mb_next_states = [],[],[],[],[],[]
         mb_states = self.states
         # epinfos=[]
         for n in range(self.nsteps):
@@ -65,7 +65,7 @@ class Runner(AbstractEnvRunner):
 
 
             obs, rewards, dones, _ = self.env.step(actions)
-            mb_extrinsic_reward.append(rewards)
+            # mb_extrinsic_reward.append(rewards)
             # for info in info :
             #     maybeepinfo = info.get('episode')
             #     if maybeepinfo: epinfos.append(maybeepinfo)
@@ -162,4 +162,4 @@ class Runner(AbstractEnvRunner):
         mb_masks = mb_masks.flatten()
         # print(" Mini batch shapes  obs {} , states  {} , rewards {} ".format(np.shape(mb_obs) , type(mb_states) , np.shape(mb_rewards)))
         
-        return mb_obs, mb_states, mb_rewards, mb_masks, mb_actions, mb_values, mb_next_states, mb_extrinsic_reward 
+        return mb_obs, mb_states, mb_rewards, mb_masks, mb_actions, mb_values, mb_next_states 
