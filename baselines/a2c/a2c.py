@@ -335,7 +335,7 @@ def learn(
             # logger.record_tabular('eprewmea', safemean([epinfo['r'] for epinfo in epinfobuf]))
             logger.record_tabular("explained_variance", float(ev))
             logger.dump_tabular()
-        return model
+    return model
 
 
 def safemean(xs):
