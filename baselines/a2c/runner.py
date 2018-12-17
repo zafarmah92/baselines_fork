@@ -99,7 +99,7 @@ class Runner(AbstractEnvRunner):
                 # print("Rewards received from icm Model : ", rewards)
                 # loss = self.icm.train()
 
-            mb_next_states.append(np.copy(self.obs))
+            mb_next_states.append(np.copy(obs))
 
             self.states = states
             self.dones = dones

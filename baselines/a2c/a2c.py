@@ -127,7 +127,9 @@ class Model(object):
                 td_map[train_model.S] = states
                 td_map[train_model.M] = masks
             
-            if icm is None :   
+            if icm is None : 
+
+                # print("Session run without curiosity")  
                 policy_loss, value_loss, policy_entropy, _ = sess.run(
                     [pg_loss, vf_loss, entropy, _train],
                     td_map

@@ -71,38 +71,30 @@ class AtariRescale42x42(gym.ObservationWrapper):
     def _observation(self, observation_n):
         return [_process_frame42(observation) for observation in observation_n]
 
-def make_env(env_id, env_type, subrank=0, seed=None, reward_scale=1.0, gamestate=None, wrapper_kwargs=None):
+def make_env(env_id, env_type, subrank=0, seed=None, reward_scale=1.0, gamestate=None, wrapper_kwargs={}):
     mpi_rank = MPI.COMM_WORLD.Get_rank() if MPI else 0
-    env = gym.make(env_id)
-    # env = Downsample(env)
-    # env = Rgb2gray(env)
+    if env_type == 'atari':
+        env = make_atari(env_id)
+    elif env_type == 'retro':
+        import retro
+        gamestate = gamestate or retro.State.DEFAULT
+        env = retro_wrappers.make_retro(game=env_id, max_episode_steps=10000, use_restricted_actions=retro.Actions.DISCRETE, state=gamestate)
+    else:
+        env = gym.make(env_id)
 
-    print(" Make ENV :::: " , logger.get_dir()  , " MPI rank :: " , str(mpi_rank))
-    
     env.seed(seed + subrank if seed is not None else None)
-
-    env = Monitor(env , 
+    env = Monitor(env,
                   logger.get_dir() and os.path.join(logger.get_dir(), str(mpi_rank) + '.' + str(subrank)),
-                  allow_early_resets=True )
+                  allow_early_resets=True)
 
-    # preprocess frames 
-    print("Calling the wrap deep mind ")
-    # Already preprocessing the frames 
-    env = wrap_deepmind(env, **wrapper_kwargs)
-    # env = Downsample(env)
-    # env = Rgb2gray(env)
+    if env_type == 'atari':
+        env = wrap_deepmind(env, **wrapper_kwargs)
+    elif env_type == 'retro':
+        env = retro_wrappers.wrap_deepmind_retro(env, **wrapper_kwargs)
 
-    # env = AtariRescale42x42(env)
-    # env = Downsample(env)
-    # env = Rgb2gray(env)
-
-
-    # print("preprocessing Done ")
-
-    # if env_type == 'atari':
-    #     env = wrap_deepmind(env, **wrapper_kwargs)
     if reward_scale != 1:
         env = retro_wrappers.RewardScaler(env, reward_scale)
+
     return env
 
 
