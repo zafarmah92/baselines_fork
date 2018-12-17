@@ -103,8 +103,8 @@ class Model(object):
         trainer = tf.train.RMSPropOptimizer(learning_rate=LR, decay=alpha, epsilon=epsilon)
 
         # _train = trainer.apply_gradients(grads)
-        _train = trainer.apply_gradients(grads
-)
+        _train = trainer.apply_gradients(grads)
+
         lr = Scheduler(v=lr, nvalues=total_timesteps, schedule=lrschedule)
 
         def train(obs, states, rewards, masks, actions, values , icm, next_obs):
@@ -245,7 +245,7 @@ def learn(
 
     temp_nbatch = nenvs * nsteps
     temp_nbatch_train = temp_nbatch 
-    epinfobuf = deque(maxlen=100)
+    # epinfobuf = deque(maxlen=100)
 
 
     if curiosity == True :
@@ -282,7 +282,7 @@ def learn(
 
     for update in range(1, total_timesteps//nbatch+1):
         # Get mini batch of experiences
-        obs, states, rewards, masks, actions, values, next_obs, extrinsic_rewards , epinfos  = runner.run()
+        obs, states, rewards, masks, actions, values, next_obs, extrinsic_rewards = runner.run()
 
 
         
@@ -329,13 +329,13 @@ def learn(
             logger.record_tabular("total_timesteps", update*nbatch)
             logger.record_tabular("fps", fps)
             logger.record_tabular("policy_entropy", float(policy_entropy))
-            logger.record_tabular("policy_loss",float(policy_loss))
+            # logger.record_tabular("policy_loss",float(policy_loss))
             logger.record_tabular("value_loss", float(value_loss))
 
-            logger.record_tabular('eprewmea', safemean([epinfo['r'] for epinfo in epinfobuf]))
+            # logger.record_tabular('eprewmea', safemean([epinfo['r'] for epinfo in epinfobuf]))
             logger.record_tabular("explained_variance", float(ev))
             logger.dump_tabular()
-    return model
+        return model
 
 
 def safemean(xs):
