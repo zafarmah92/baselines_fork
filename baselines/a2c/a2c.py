@@ -39,8 +39,8 @@ class Model(object):
         nenvs = env.num_envs
         nbatch = nenvs*nsteps
 
-        self.global_step = tf.get_variable("global_step", [], tf.int32, initializer=tf.constant_initializer(0, dtype=tf.int32),
-                                                   trainable=False)
+        # self.global_step = tf.get_variable("global_step", [], tf.int32, initializer=tf.constant_initializer(0, dtype=tf.int32),
+        #                                            trainable=False)
 
 
         with tf.variable_scope('a2c_model', reuse=tf.AUTO_REUSE):
@@ -83,7 +83,7 @@ class Model(object):
         if max_grad_norm is not None:
             # Clip the gradients (normalize)
             grads, grad_norm = tf.clip_by_global_norm(grads, max_grad_norm)        
-            grads = list(zip(grads, params))
+        grads = list(zip(grads, params))
         
         ### testing 
 
@@ -270,7 +270,7 @@ def learn(
 
         # env.render()
     else :
-        print("runner from this line called ")
+        print("ICM runner from this line called ")
         runner = Runner(env=env, model=model, icm=icm,  nsteps=nsteps, gamma=gamma)
 
 
