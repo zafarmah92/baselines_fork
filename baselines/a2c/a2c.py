@@ -286,7 +286,7 @@ def learn(
 
 
         
-        epinfobuf.extend(epinfos)
+        # epinfobuf.extend(epinfos)
 
         # print(" update_step : {} -> obs : {}, action {} reward {} values {}".format(
             # update,np.shape(obs), np.shape(actions), np.shape(rewards) , np.shape(values)))
