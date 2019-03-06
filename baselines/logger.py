@@ -346,9 +346,9 @@ class Logger(object):
 
 def configure(dir=None, format_strs=None):
     if dir is None:
-        dir = "/home/ahmedrashed/RR2018/OpenaiAdaptiveV2/a2cLog/"
+        dir = os.getenv('OPENAI_LOGDIR')
     if dir is None:
-        dir = osp.join("/home/ahmedrashed/RR2018/OpenaiAdaptiveV2/a2cLog/",
+        dir = osp.join(tempfile.gettempdir(),
             datetime.datetime.now().strftime("openai-%Y-%m-%d-%H-%M-%S-%f"))
     assert isinstance(dir, str)
     os.makedirs(dir, exist_ok=True)

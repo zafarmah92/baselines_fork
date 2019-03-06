@@ -240,6 +240,6 @@ def learn(
             logger.record_tabular("sum rewards",  np.sum(rewards))
             logger.dump_tabular()
             now = datetime.datetime.now()
-            model.save("/home/ahmedrashed/RR2018/OpenaiAdaptiveV2/a2cSave/a2cSave"+str(update))
+            # model.save("/home/ahmedrashed/RR2018/OpenaiAdaptiveV2/a2cSave/a2cSave"+str(update))
     return model
 
