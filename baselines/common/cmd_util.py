@@ -16,87 +16,30 @@ from baselines.common import set_global_seeds
 from baselines.common.atari_wrappers import make_atari, wrap_deepmind
 from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
 from baselines.common.vec_env.dummy_vec_env import DummyVecEnv
-from baselines.common.vec_env import *
-from baselines.common.retro_wrappers import Downsample, Rgb2gray
-# from universe import vectorized
-from baselines.common import retro_wrappers
-import gym
-import numpy as np
-from .atari_wrappers import *
+from baselines.common.retro_wrappers import RewardScaler
 
 
-def make_vec_env(env_id, env_type, num_env, seed, wrapper_kwargs=None, start_index=0, reward_scale=1.0, gamestate=None):
+def make_vec_env(env_id, env_type, num_env, seed, wrapper_kwargs=None, start_index=0, reward_scale=1.0):
     """
     Create a wrapped, monitored SubprocVecEnv for Atari and MuJoCo.
     """
     if wrapper_kwargs is None: wrapper_kwargs = {}
     mpi_rank = MPI.COMM_WORLD.Get_rank() if MPI else 0
-    seed = seed + 10000 * mpi_rank if seed is not None else None
-    def make_thunk(rank):
-        return lambda: make_env(
-            env_id=env_id,
-            env_type=env_type,
-            subrank = rank,
-            seed=seed,
-            reward_scale=reward_scale,
-            gamestate=gamestate,
-            wrapper_kwargs=wrapper_kwargs
-        )
+    def make_env(rank): # pylint: disable=C0111
+        def _thunk():
+            env = make_atari(env_id) if env_type == 'atari' else gym.make(env_id)
+            env.seed(seed + 10000*mpi_rank + rank if seed is not None else None)
+            env = Monitor(env,
+                          logger.get_dir() and os.path.join(logger.get_dir(), str(mpi_rank) + '.' + str(rank)),
+                          allow_early_resets=True)
 
+            if env_type == 'atari': return wrap_deepmind(env, **wrapper_kwargs)
+            elif reward_scale != 1: return RewardScaler(env, reward_scale)
+            else: return env
+        return _thunk
     set_global_seeds(seed)
-    if num_env > 1:
-        return SubprocVecEnv([make_thunk(i + start_index) for i in range(num_env)])
-    else:
-        return DummyVecEnv([make_thunk(start_index)])
-
-
-def _process_frame42(frame):
-    frame = frame[34:34+160, :160]
-    # Resize by half, then down to 42x42 (essentially mipmapping). If
-    # we resize directly we lose pixels that, when mapped to 42x42,
-    # aren't close enough to the pixel boundary.
-    frame = np.asarray(Image.fromarray(frame).resize((80, 80), resample=cv2.BILINEAR).resize(
-                        (42,42), resample=Image.BILINEAR))
-    frame = frame.mean(2)  # take mean along channels
-    frame = frame.astype(np.float32)
-    frame *= (1.0 / 255.0)
-    frame = np.reshape(frame, [42, 42, 1])
-    return frame
-
-class AtariRescale42x42(gym.ObservationWrapper):
-    def __init__(self, env=None):
-        super(AtariRescale42x42, self).__init__(env)
-        self.observation_space = gym.spaces.Box(0.0, 1.0, [42, 42, 1])
-
-    def _observation(self, observation_n):
-        return [_process_frame42(observation) for observation in observation_n]
-
-def make_env(env_id, env_type, subrank=0, seed=None, reward_scale=1.0, gamestate=None, wrapper_kwargs={}):
-    mpi_rank = MPI.COMM_WORLD.Get_rank() if MPI else 0
-    if env_type == 'atari':
-        env = make_atari(env_id)
-    elif env_type == 'retro':
-        import retro
-        gamestate = gamestate or retro.State.DEFAULT
-        env = retro_wrappers.make_retro(game=env_id, max_episode_steps=10000, use_restricted_actions=retro.Actions.DISCRETE, state=gamestate)
-    else:
-        env = gym.make(env_id)
-
-    env.seed(seed + subrank if seed is not None else None)
-    env = Monitor(env,
-                  logger.get_dir() and os.path.join(logger.get_dir(), str(mpi_rank) + '.' + str(subrank)),
-                  allow_early_resets=True)
-
-    if env_type == 'atari':
-        env = wrap_deepmind(env, **wrapper_kwargs)
-    elif env_type == 'retro':
-        env = retro_wrappers.wrap_deepmind_retro(env, **wrapper_kwargs)
-
-    if reward_scale != 1:
-        env = retro_wrappers.RewardScaler(env, reward_scale)
-
-    return env
-
+    if num_env > 1: return SubprocVecEnv([make_env(i + start_index) for i in range(num_env)])
+    else: return DummyVecEnv([make_env(start_index)])
 
 def make_mujoco_env(env_id, seed, reward_scale=1.0):
     """
@@ -159,8 +102,6 @@ def common_arg_parser():
     parser.add_argument('--num_env', help='Number of environment copies being run in parallel. When not specified, set to number of cpus for Atari, and to 1 for Mujoco', default=None, type=int)
     parser.add_argument('--reward_scale', help='Reward scale factor. Default: 1.0', default=1.0, type=float)
     parser.add_argument('--save_path', help='Path to save trained model to', default=None, type=str)
-    parser.add_argument('--save_video_interval', help='Save video every x steps (0 = disabled)', default=0, type=int)
-    parser.add_argument('--save_video_length', help='Length of recorded video. Default: 200', default=200, type=int)
     parser.add_argument('--play', default=False, action='store_true')
     return parser
 

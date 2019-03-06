@@ -129,26 +129,18 @@ class ClipRewardEnv(gym.RewardWrapper):
         return np.sign(reward)
 
 class WarpFrame(gym.ObservationWrapper):
-    def __init__(self, env, width=84, height=84, grayscale=True):
+    def __init__(self, env):
         """Warp frames to 84x84 as done in the Nature paper and later work."""
         gym.ObservationWrapper.__init__(self, env)
-        self.width = width
-        self.height = height
-        self.grayscale = grayscale
-        if self.grayscale:
-            self.observation_space = spaces.Box(low=0, high=255,
-                shape=(self.height, self.width, 1), dtype=np.uint8)
-        else:
-            self.observation_space = spaces.Box(low=0, high=255,
-                shape=(self.height, self.width, 3), dtype=np.uint8)
+        self.width = 84
+        self.height = 84
+        self.observation_space = spaces.Box(low=0, high=255,
+            shape=(self.height, self.width, 1), dtype=np.uint8)
 
     def observation(self, frame):
-        if self.grayscale:
-            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
         frame = cv2.resize(frame, (self.width, self.height), interpolation=cv2.INTER_AREA)
-        if self.grayscale:
-            frame = np.expand_dims(frame, -1)
-        return frame
+        return frame[:, :, None]
 
 class FrameStack(gym.Wrapper):
     def __init__(self, env, k):
@@ -164,7 +156,7 @@ class FrameStack(gym.Wrapper):
         self.k = k
         self.frames = deque([], maxlen=k)
         shp = env.observation_space.shape
-        self.observation_space = spaces.Box(low=0, high=255, shape=(shp[:-1] + (shp[-1] * k,)), dtype=env.observation_space.dtype)
+        self.observation_space = spaces.Box(low=0, high=255, shape=(shp[0], shp[1], shp[2] * k), dtype=env.observation_space.dtype)
 
     def reset(self):
         ob = self.env.reset()
@@ -205,7 +197,7 @@ class LazyFrames(object):
 
     def _force(self):
         if self._out is None:
-            self._out = np.concatenate(self._frames, axis=-1)
+            self._out = np.concatenate(self._frames, axis=2)
             self._frames = None
         return self._out
 
@@ -221,11 +213,8 @@ class LazyFrames(object):
     def __getitem__(self, i):
         return self._force()[i]
 
-def make_atari(env_id, timelimit=True):
-    # XXX(john): remove timelimit argument after gym is upgraded to allow double wrapping
+def make_atari(env_id):
     env = gym.make(env_id)
-    if not timelimit:
-        env = env.env
     assert 'NoFrameskip' in env.spec.id
     env = NoopResetEnv(env, noop_max=30)
     env = MaxAndSkipEnv(env, skip=4)

@@ -1,12 +1,12 @@
 import tensorflow as tf
 from baselines.common import tf_util
 from baselines.a2c.utils import fc
+from baselines.a2c.utils import fcNoisy
 from baselines.common.distributions import make_pdtype
 from baselines.common.input import observation_placeholder, encode_observation
 from baselines.common.tf_util import adjust_shape
 from baselines.common.mpi_running_mean_std import RunningMeanStd
 from baselines.common.models import get_network_builder
-import numpy as np
 
 import gym
 
@@ -43,32 +43,42 @@ class PolicyWithValue(object):
 
         vf_latent = tf.layers.flatten(vf_latent)
         latent = tf.layers.flatten(latent)
-
+        self.noise=tf.placeholder(tf.float32, name="noise")
+        self.newbie=tf.placeholder(tf.float32, name="newbie")
+        self.Sigma=tf.placeholder(tf.float32, name="Sigma")
         # Based on the action space, will select what probability distribution type
         self.pdtype = make_pdtype(env.action_space)
 
-        self.pd, self.pi = self.pdtype.pdfromlatent(latent, init_scale=0.01)
-
+        self.pd, self.pi,self.pdNoNoise = self.pdtype.pdfromlatent(latent, init_scale=0.01,Newbie=self.newbie,Noise=self.noise,sigma=self.Sigma)
+        
+        self.DPD=self.kl(tf.nn.softmax(self.pi) ,tf.nn.softmax(self.pdNoNoise)) #RAFAEL
         # Take an action
         self.action = self.pd.sample()
 
         # Calculate the neg log of our probability
         self.neglogp = self.pd.neglogp(self.action)
-        self.sess = sess or tf.get_default_session()
+        self.sess = sess
 
         if estimate_q:
             assert isinstance(env.action_space, gym.spaces.Discrete)
             self.q = fc(vf_latent, 'q', env.action_space.n)
             self.vf = self.q
         else:
-            self.vf = fc(vf_latent, 'vf', 1)
+            self.vf,_ = fcNoisy(vf_latent, 'vf', 1,newbie=self.newbie,noise=self.noise,sigma=self.Sigma)
             self.vf = self.vf[:,0]
 
-    def _evaluate(self, variables, observation, **extra_feed):
-         # print("Entered The _evaluate FUnction now self.x {} ,  observation {} "
-         #    .format(np.shape(self.X) , np.shape(observation) ))
-        sess = self.sess
-        feed_dict = {self.X: adjust_shape(self.X, observation)}
+    def kl(self,x, y):
+        X = tf.distributions.Categorical(probs=x)
+        Y = tf.distributions.Categorical(probs=y)
+        return tf.distributions.kl_divergence(X, Y)
+
+    def _evaluate(self, variables, observation,Noise=0.0,Newbie=0.0,sigma=0.0, **extra_feed):
+        sess = self.sess or tf.get_default_session()
+        feed_dict = {self.X: adjust_shape(self.X, observation),
+        self.noise:Noise,
+        self.newbie:Newbie,
+        self.Sigma:sigma}
+
         for inpt_name, data in extra_feed.items():
             if inpt_name in self.__dict__.keys():
                 inpt = self.__dict__[inpt_name]
@@ -77,7 +87,9 @@ class PolicyWithValue(object):
 
         return sess.run(variables, feed_dict)
 
-    def step(self, observation, **extra_feed):
+
+
+    def step(self, observation,Noise=0.0,Newbie=0.0,sigma=0.0, **extra_feed):
         """
         Compute next action(s) given the observation(s)
 
@@ -93,12 +105,12 @@ class PolicyWithValue(object):
         (action, value estimate, next state, negative log likelihood of the action under current policy parameters) tuple
         """
 
-        a, v, state, neglogp = self._evaluate([self.action, self.vf, self.state, self.neglogp], observation, **extra_feed)
+        a, v, state, neglogp,DPD = self._evaluate([self.action, self.vf, self.state, self.neglogp,self.DPD], observation,Noise,Newbie,sigma, **extra_feed)
         if state.size == 0:
             state = None
-        return a, v, state, neglogp
+        return a, v, state, neglogp,DPD
 
-    def value(self, ob, *args, **kwargs):
+    def value(self, ob,Noise=0.0,Newbie=0.0,sigma=0.0, *args, **kwargs):
         """
         Compute value estimate(s) given the observation(s)
 
@@ -113,7 +125,7 @@ class PolicyWithValue(object):
         -------
         value estimate
         """
-        return self._evaluate(self.vf, ob, *args, **kwargs)
+        return self._evaluate(self.vf, ob,Noise,Newbie,sigma, *args, **kwargs)
 
     def save(self, save_path):
         tf_util.save_state(save_path, sess=self.sess)
@@ -125,7 +137,6 @@ def build_policy(env, policy_network, value_network=None,  normalize_observation
     if isinstance(policy_network, str):
         network_type = policy_network
         policy_network = get_network_builder(network_type)(**policy_kwargs)
-        print("received Policy Network with :: ",policy_network)
 
     def policy_fn(nbatch=None, nsteps=None, sess=None, observ_placeholder=None):
         ob_space = env.observation_space
@@ -143,16 +154,14 @@ def build_policy(env, policy_network, value_network=None,  normalize_observation
         encoded_x = encode_observation(ob_space, encoded_x)
 
         with tf.variable_scope('pi', reuse=tf.AUTO_REUSE):
-            policy_latent = policy_network(encoded_x)
-            if isinstance(policy_latent, tuple):
-                policy_latent, recurrent_tensors = policy_latent
+            policy_latent, recurrent_tensors = policy_network(encoded_x)
 
-                if recurrent_tensors is not None:
-                    # recurrent architecture, need a few more steps
-                    nenv = nbatch // nsteps
-                    assert nenv > 0, 'Bad input for recurrent policy: batch size {} smaller than nsteps {}'.format(nbatch, nsteps)
-                    policy_latent, recurrent_tensors = policy_network(encoded_x, nenv)
-                    extra_tensors.update(recurrent_tensors)
+            if recurrent_tensors is not None:
+                # recurrent architecture, need a few more steps
+                nenv = nbatch // nsteps
+                assert nenv > 0, 'Bad input for recurrent policy: batch size {} smaller than nsteps {}'.format(nbatch, nsteps)
+                policy_latent, recurrent_tensors = policy_network(encoded_x, nenv)
+                extra_tensors.update(recurrent_tensors)
 
 
         _v_net = value_network
@@ -166,8 +175,7 @@ def build_policy(env, policy_network, value_network=None,  normalize_observation
                 assert callable(_v_net)
 
             with tf.variable_scope('vf', reuse=tf.AUTO_REUSE):
-                # TODO recurrent architectures are not supported with value_network=copy yet
-                vf_latent = _v_net(encoded_x)
+                vf_latent, _ = _v_net(encoded_x)
 
         policy = PolicyWithValue(
             env=env,

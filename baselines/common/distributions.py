@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np
 import baselines.common.tf_util as U
 from baselines.a2c.utils import fc
+from baselines.a2c.utils import fcNoisy
 from tensorflow.python.ops import math_ops
 
 class Pd(object):
@@ -39,7 +40,7 @@ class PdType(object):
         raise NotImplementedError
     def pdfromflat(self, flat):
         return self.pdclass()(flat)
-    def pdfromlatent(self, latent_vector, init_scale, init_bias):
+    def pdfromlatent(self, latent_vector):
         raise NotImplementedError
     def param_shape(self):
         raise NotImplementedError
@@ -53,17 +54,14 @@ class PdType(object):
     def sample_placeholder(self, prepend_shape, name=None):
         return tf.placeholder(dtype=self.sample_dtype(), shape=prepend_shape+self.sample_shape(), name=name)
 
-    def __eq__(self, other):
-        return (type(self) == type(other)) and (self.__dict__ == other.__dict__)
-
 class CategoricalPdType(PdType):
     def __init__(self, ncat):
         self.ncat = ncat
     def pdclass(self):
         return CategoricalPd
-    def pdfromlatent(self, latent_vector, init_scale=1.0, init_bias=0.0):
-        pdparam = _matching_fc(latent_vector, 'pi', self.ncat, init_scale=init_scale, init_bias=init_bias)
-        return self.pdfromflat(pdparam), pdparam
+    def pdfromlatent(self, latent_vector, init_scale=1.0, init_bias=0.0,Newbie=1.0,Noise=0.0,sigma=0.0):
+        pdparam,fakepdparm = fcNoisy(latent_vector, 'pi', self.ncat, init_scale=init_scale, init_bias=init_bias,newbie=Newbie,noise=Noise,sigma=sigma)
+        return self.pdfromflat(pdparam), pdparam,fakepdparm
 
     def param_shape(self):
         return [self.ncat]
@@ -80,11 +78,6 @@ class MultiCategoricalPdType(PdType):
         return MultiCategoricalPd
     def pdfromflat(self, flat):
         return MultiCategoricalPd(self.ncats, flat)
-
-    def pdfromlatent(self, latent, init_scale=1.0, init_bias=0.0):
-        pdparam = _matching_fc(latent, 'pi', self.ncats.sum(), init_scale=init_scale, init_bias=init_bias)
-        return self.pdfromflat(pdparam), pdparam
-
     def param_shape(self):
         return [sum(self.ncats)]
     def sample_shape(self):
@@ -99,7 +92,7 @@ class DiagGaussianPdType(PdType):
         return DiagGaussianPd
 
     def pdfromlatent(self, latent_vector, init_scale=1.0, init_bias=0.0):
-        mean = _matching_fc(latent_vector, 'pi', self.size, init_scale=init_scale, init_bias=init_bias)
+        mean = fc(latent_vector, 'pi', self.size, init_scale=init_scale, init_bias=init_bias)
         logstd = tf.get_variable(name='pi/logstd', shape=[1, self.size], initializer=tf.zeros_initializer())
         pdparam = tf.concat([mean, mean * 0.0 + logstd], axis=1)
         return self.pdfromflat(pdparam), mean
@@ -123,7 +116,7 @@ class BernoulliPdType(PdType):
     def sample_dtype(self):
         return tf.int32
     def pdfromlatent(self, latent_vector, init_scale=1.0, init_bias=0.0):
-        pdparam = _matching_fc(latent_vector, 'pi', self.size, init_scale=init_scale, init_bias=init_bias)
+        pdparam = fc(latent_vector, 'pi', self.size, init_scale=init_scale, init_bias=init_bias)
         return self.pdfromflat(pdparam), pdparam
 
 # WRONG SECOND DERIVATIVES
@@ -149,18 +142,11 @@ class BernoulliPdType(PdType):
 #         u = tf.random_uniform(tf.shape(self.logits))
 #         return U.argmax(self.logits - tf.log(-tf.log(u)), axis=-1)
 
-
-def guassian_noise_layer(input_layer , std=2.0):
-    noise = tf.random_normal(shape=tf.shape(input_layer), mean=0.0 , stddev=std , dtype=tf.float32)
-    return input_layer + noise 
-
 class CategoricalPd(Pd):
     def __init__(self, logits):
         self.logits = logits
     def flatparam(self):
         return self.logits
-
-
     def mode(self):
         return tf.argmax(self.logits, axis=-1)
 
@@ -178,12 +164,11 @@ class CategoricalPd(Pd):
             for xs, ls in zip(x_shape_list, logits_shape_list):
                 if xs is not None and ls is not None:
                     assert xs == ls, 'shape mismatch: {} in x vs {} in logits'.format(xs, ls)
+
             x = tf.one_hot(x, self.logits.get_shape().as_list()[-1])
         else:
             # already encoded
             assert x.shape.as_list() == self.logits.shape.as_list()
-
-        # self.logits = guassian_noise_layer(self.logits)
 
         return tf.nn.softmax_cross_entropy_with_logits_v2(
             logits=self.logits,
@@ -353,9 +338,3 @@ def validate_probtype(probtype, pdparam):
     assert np.abs(klval - klval_ll) < 3 * klval_ll_stderr # within 3 sigmas
     print('ok on', probtype, pdparam)
 
-
-def _matching_fc(tensor, name, size, init_scale, init_bias):
-    if tensor.shape[-1] == size:
-        return tensor
-    else:
-        return fc(tensor, name, size, init_scale=init_scale, init_bias=init_bias)

@@ -1,21 +1,19 @@
 import time
 import functools
 import tensorflow as tf
-
+import datetime
 from baselines import logger
+import numpy as np
 
 from baselines.common import set_global_seeds, explained_variance
 from baselines.common import tf_util
 from baselines.common.policies import build_policy
 
-from collections import deque
 
 from baselines.a2c.utils import Scheduler, find_trainable_variables
 from baselines.a2c.runner import Runner
-from baselines.common.ICM import ICM
 
 from tensorflow import losses
-import numpy as np
 
 class Model(object):
 
@@ -31,7 +29,7 @@ class Model(object):
         save/load():
         - Save load the model
     """
-    def __init__(self, policy, env, nsteps,icm,
+    def __init__(self, policy, env, nsteps,
             ent_coef=0.01, vf_coef=0.5, max_grad_norm=0.5, lr=7e-4,
             alpha=0.99, epsilon=1e-5, total_timesteps=int(80e6), lrschedule='linear'):
 
@@ -39,16 +37,12 @@ class Model(object):
         nenvs = env.num_envs
         nbatch = nenvs*nsteps
 
-        # self.global_step = tf.get_variable("global_step", [], tf.int32, initializer=tf.constant_initializer(0, dtype=tf.int32),
-        #                                            trainable=False)
-
 
         with tf.variable_scope('a2c_model', reuse=tf.AUTO_REUSE):
             # step_model is used for sampling
             step_model = policy(nenvs, 1, sess)
 
             # train_model is used to train our network
-            ## cnn or cnnlstm policy
             train_model = policy(nbatch, nsteps, sess)
 
         A = tf.placeholder(train_model.action.dtype, train_model.action.shape)
@@ -74,79 +68,40 @@ class Model(object):
 
         # Update parameters using loss
         # 1. Get the model parameters
-        # print()
         params = find_trainable_variables("a2c_model")
 
         # 2. Calculate the gradients
-        grads = tf.gradients(loss, params)  #>>>>
-        # this is on 
+        grads = tf.gradients(loss, params)
         if max_grad_norm is not None:
             # Clip the gradients (normalize)
-            grads, grad_norm = tf.clip_by_global_norm(grads, max_grad_norm)        
+            grads, grad_norm = tf.clip_by_global_norm(grads, max_grad_norm)
         grads = list(zip(grads, params))
-        
-        ### testing 
-
-        if icm is not None :
-
-            grads = grads + icm.pred_grads_and_vars
-            print("Gradients added ")
-            print("independetly there shape were a2c : {} icm :{} and together {} ".format(np.shape(grads),np.shape(icm.pred_grads_and_vars),
-                np.shape(grads_and_vars)))
-
-
-        # >>>>>>> So far this point is good now with ICM 
         # zip aggregate each gradient with parameters associated
         # For instance zip(ABCD, xyza) => Ax, By, Cz, Da
 
         # 3. Make op for one policy and value update step of A2C
         trainer = tf.train.RMSPropOptimizer(learning_rate=LR, decay=alpha, epsilon=epsilon)
 
-        # _train = trainer.apply_gradients(grads)
         _train = trainer.apply_gradients(grads)
 
         lr = Scheduler(v=lr, nvalues=total_timesteps, schedule=lrschedule)
 
-        def train(obs, states, rewards, masks, actions, values , icm, next_obs):
+        def train(obs, states, rewards, masks, actions, values):
             # Here we calculate advantage A(s,a) = R + yV(s') - V(s)
             # rewards = R + yV(s')
-            # print("called Trained function ")
             advs = rewards - values
             for step in range(len(obs)):
                 cur_lr = lr.value()
 
-
-            if icm is None :    
-                td_map = {train_model.X:obs, A:actions, ADV:advs, R:rewards, LR:cur_lr}
-            else :
-                print("curiosity Td Map ")
-                td_map = {train_model.X:obs, A:actions, ADV:advs, R:rewards, LR:cur_lr , 
-                icm.state_:obs, icm.next_state_ : next_obs , icm.action_ : actions , icm.R :rewards }
-            # cnn and cnn lstm policy 
+            td_map = {train_model.X:obs, A:actions, ADV:advs, R:rewards, LR:cur_lr,train_model.noise:0.0,train_model.newbie:1.0,train_model.Sigma:0.0}
             if states is not None:
                 td_map[train_model.S] = states
                 td_map[train_model.M] = masks
-            
-            if icm is None : 
-
-                # print("Session run without curiosity")  
-                policy_loss, value_loss, policy_entropy, _ = sess.run(
-                    [pg_loss, vf_loss, entropy, _train],
-                    td_map
-
-                )
-
-                return policy_loss, value_loss, policy_entropy
-            else :
-                print("Session Run with curiosity")
-                policy_loss, value_loss, policy_entropy,forward_loss , inverse_loss , icm_loss, _ = sess.run(
-                    [pg_loss, vf_loss, entropy, icm.forw_loss , icm.inv_loss, icm.icm_loss ,_train],
-                    td_map
-
-                )
-                return policy_loss, value_loss, policy_entropy,forward_loss , inverse_loss , icm_loss
-
-
+            policy_loss, value_loss, policy_entropy, _ = sess.run(
+                [pg_loss, vf_loss, entropy, _train],
+                td_map
+            )
+            return policy_loss, value_loss, policy_entropy
 
 
         self.train = train
@@ -158,6 +113,12 @@ class Model(object):
         self.save = functools.partial(tf_util.save_variables, sess=sess)
         self.load = functools.partial(tf_util.load_variables, sess=sess)
         tf.global_variables_initializer().run(session=sess)
+
+def sigmaUpdate( sigma,condition=0,alpha=1.01):
+    if condition==1:
+        return sigma*alpha
+    else:
+        return sigma/alpha
 
 
 def learn(
@@ -174,7 +135,7 @@ def learn(
     epsilon=1e-5,
     alpha=0.99,
     gamma=0.99,
-    log_interval=100,
+    log_interval=5000,
     load_path=None,
     **network_kwargs):
 
@@ -226,9 +187,6 @@ def learn(
     '''
 
 
-    # curiosity 
-    # curiosity = True
-    curiosity = False
 
     set_global_seeds(seed)
 
@@ -236,109 +194,52 @@ def learn(
     nenvs = env.num_envs
     policy = build_policy(env, network, **network_kwargs)
 
-    print(" Called the learn function \n\n\nNumber of Envs :", nenvs)
-
     # Instantiate the model object (that creates step_model and train_model)
-
-
-    temp_ob_space = env.observation_space
-    temp_ac_space = env.action_space
-
-
-    temp_nbatch = nenvs * nsteps
-    temp_nbatch_train = temp_nbatch 
-    # epinfobuf = deque(maxlen=100)
-
-
-    if curiosity == True :
-        make_icm = lambda: ICM(ob_space = temp_ob_space, ac_space = temp_ac_space, max_grad_norm = max_grad_norm, beta = 0.2, icm_lr_scale = 0.5 )
-        icm = make_icm()
-
-        model = Model(policy=policy, env=env, nsteps=nsteps, icm=icm , ent_coef=ent_coef, vf_coef=vf_coef,
-            max_grad_norm=max_grad_norm, lr=lr, alpha=alpha, epsilon=epsilon, total_timesteps=total_timesteps, lrschedule=lrschedule)
-    else :
-        model = Model(policy=policy, env=env, nsteps=nsteps,icm=None, ent_coef=ent_coef, vf_coef=vf_coef,
-            max_grad_norm=max_grad_norm, lr=lr, alpha=alpha, epsilon=epsilon, total_timesteps=total_timesteps, lrschedule=lrschedule)
+    model = Model(policy=policy, env=env, nsteps=nsteps, ent_coef=ent_coef, vf_coef=vf_coef,
+        max_grad_norm=max_grad_norm, lr=lr, alpha=alpha, epsilon=epsilon, total_timesteps=total_timesteps, lrschedule=lrschedule)
     if load_path is not None:
         model.load(load_path)
 
-
-    # instentiate curiosity objects 
-
-
-    if curiosity == False :
-        # instentiate runner object
-        runner = Runner(env, model, nsteps=nsteps, icm=None, gamma=gamma)
-
-        # env.render()
-    else :
-        print("ICM runner from this line called ")
-        runner = Runner(env=env, model=model, icm=icm,  nsteps=nsteps, gamma=gamma)
-
+    # Instantiate the runner object
+    runner = Runner(env, model, nsteps=nsteps, gamma=gamma)
 
     # Calculate the batch_size
     nbatch = nenvs*nsteps
-
+    sigma = 0.01
     # Start total timer
     tstart = time.time()
-
+    DPD=0.0
+    delta=0.0001
     for update in range(1, total_timesteps//nbatch+1):
         # Get mini batch of experiences
-        obs, states, rewards, masks, actions, values, next_obs = runner.run()
 
+        if update > 1:
+            cond=0
+            if DPD < delta:
+                cond=1
+            sigma=sigmaUpdate(condition=cond,sigma=sigma)
+        obs, states, rewards, masks, actions, values,DPD = runner.run(Sigma=sigma)
 
-        
-        # epinfobuf.extend(epinfos)
-
-        # print(" update_step : {} -> obs : {}, action {} reward {} values {}".format(
-            # update,np.shape(obs), np.shape(actions), np.shape(rewards) , np.shape(values)))
-
-
-        if curiosity == True :
-            print("Calling Train with curiosity")
-            policy_loss, value_loss, policy_entropy,forwardLoss , inverseLoss , icm_loss = model.train(obs, states, rewards, masks, actions, values , icm , next_obs)
-            print("Returned After curiosity")
-        else :
-            policy_loss, value_loss, policy_entropy = model.train(obs, states, rewards, masks, actions, values, icm=None, next_obs=None)
-        # print("Model train values ")
-        # print( " policy loss {} policy entropy {} value loss {}".format(policy_loss , policy_entropy , value_loss))
-        
-            # forwardLoss , inverseLoss , icm_loss , _ = icm.train_curiosity_model(obs, next_obs , actions, rewards)
-            # print("ForwardLoss : {} inverseLoss : {} ICM Loss {} ".format(len(forwardLoss) , inverseLoss , len(icm_loss)))
-
+        policy_loss, value_loss, policy_entropy = model.train(obs, states, rewards, masks, actions, values)
         nseconds = time.time()-tstart
 
         # Calculate the fps (frame per second)
         fps = int((update*nbatch)/nseconds)
         if update % log_interval == 0 or update == 1:
-
-            
             # Calculates if value function is a good predicator of the returns (ev > 1)
             # or if it's just worse than predicting nothing (ev =< 0)
-
-            print("Tabular Update :: ")
-            # print()
             ev = explained_variance(values, rewards)
-            # logger.record_tabular("ForwardLoss")
-
-            if curiosity == True:
-
-                logger.record_tabular("Intrensic reward ", np.mean(forwardLoss))
-                logger.record_tabular("ICM loss ",np.mean(icm_loss))
-                logger.record_tabular("Inverse Loss" , inverseLoss)
-
             logger.record_tabular("nupdates", update)
             logger.record_tabular("total_timesteps", update*nbatch)
             logger.record_tabular("fps", fps)
             logger.record_tabular("policy_entropy", float(policy_entropy))
-            # logger.record_tabular("policy_loss",float(policy_loss))
-            logger.record_tabular("value_loss", float(value_loss))
-
-            # logger.record_tabular('eprewmea', safemean([epinfo['r'] for epinfo in epinfobuf]))
             logger.record_tabular("explained_variance", float(ev))
+            logger.record_tabular("value_loss", float(value_loss))
+            logger.record_tabular("policy_loss",  float(policy_loss))
+            logger.record_tabular("Total_Loss",  float(policy_loss)+float(value_loss))
+            logger.record_tabular("sum rewards",  np.sum(rewards))
             logger.dump_tabular()
+            now = datetime.datetime.now()
+            model.save("/home/ahmedrashed/RR2018/OpenaiAdaptiveV2/a2cSave/a2cSave"+str(update))
     return model
 
-
-def safemean(xs):
-    return np.nan if len(xs) == 0 else np.mean(xs)

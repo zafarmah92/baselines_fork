@@ -26,7 +26,7 @@ def mpi_average(value):
 
 def train(policy, rollout_worker, evaluator,
           n_epochs, n_test_rollouts, n_cycles, n_batches, policy_save_interval,
-          save_policies, demo_file, **kwargs):
+          save_policies, **kwargs):
     rank = MPI.COMM_WORLD.Get_rank()
 
     latest_policy_path = os.path.join(logger.get_dir(), 'policy_latest.pkl')
@@ -35,8 +35,6 @@ def train(policy, rollout_worker, evaluator,
 
     logger.info("Training...")
     best_success_rate = -1
-
-    if policy.bc_loss == 1: policy.initDemoBuffer(demo_file) #initialize demo buffer if training with demonstrations
     for epoch in range(n_epochs):
         # train
         rollout_worker.clear_history()
@@ -86,7 +84,7 @@ def train(policy, rollout_worker, evaluator,
 
 def launch(
     env, logdir, n_epochs, num_cpu, seed, replay_strategy, policy_save_interval, clip_return,
-    demo_file, override_params={}, save_policies=True
+    override_params={}, save_policies=True
 ):
     # Fork for multi-CPU MPI implementation.
     if num_cpu > 1:
@@ -173,7 +171,7 @@ def launch(
         logdir=logdir, policy=policy, rollout_worker=rollout_worker,
         evaluator=evaluator, n_epochs=n_epochs, n_test_rollouts=params['n_test_rollouts'],
         n_cycles=params['n_cycles'], n_batches=params['n_batches'],
-        policy_save_interval=policy_save_interval, save_policies=save_policies, demo_file=demo_file)
+        policy_save_interval=policy_save_interval, save_policies=save_policies)
 
 
 @click.command()
@@ -185,7 +183,6 @@ def launch(
 @click.option('--policy_save_interval', type=int, default=5, help='the interval with which policy pickles are saved. If set to 0, only the best and latest policy will be pickled.')
 @click.option('--replay_strategy', type=click.Choice(['future', 'none']), default='future', help='the HER replay strategy to be used. "future" uses HER, "none" disables HER.')
 @click.option('--clip_return', type=int, default=1, help='whether or not returns should be clipped')
-@click.option('--demo_file', type=str, default = 'PATH/TO/DEMO/DATA/FILE.npz', help='demo data file path')
 def main(**kwargs):
     launch(**kwargs)
 

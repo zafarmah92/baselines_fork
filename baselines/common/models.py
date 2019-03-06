@@ -28,7 +28,7 @@ def nature_cnn(unscaled_images, **conv_kwargs):
 
 
 @register("mlp")
-def mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False):
+def mlp(num_layers=2, num_hidden=64, activation=tf.tanh):
     """
     Stack of fully-connected layers to be used in a policy / q-function approximator
 
@@ -46,19 +46,11 @@ def mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False):
 
     function that builds fully connected network with a given input tensor / placeholder
     """
-
-
-
-    
     def network_fn(X):
         h = tf.layers.flatten(X)
         for i in range(num_layers):
-            h = fc(h, 'mlp_fc{}'.format(i), nh=num_hidden, init_scale=np.sqrt(2))
-            if layer_norm:
-                h = tf.contrib.layers.layer_norm(h, center=True, scale=True)
-            h = activation(h)
-
-        return h
+            h = activation(fc(h, 'mlp_fc{}'.format(i), nh=num_hidden, init_scale=np.sqrt(2)))
+        return h, None
 
     return network_fn
 
@@ -66,7 +58,7 @@ def mlp(num_layers=2, num_hidden=64, activation=tf.tanh, layer_norm=False):
 @register("cnn")
 def cnn(**conv_kwargs):
     def network_fn(X):
-        return nature_cnn(X, **conv_kwargs)
+        return nature_cnn(X, **conv_kwargs), None
     return network_fn
 
 
@@ -80,7 +72,7 @@ def cnn_small(**conv_kwargs):
         h = activ(conv(h, 'c2', nf=16, rf=4, stride=2, init_scale=np.sqrt(2), **conv_kwargs))
         h = conv_to_fc(h)
         h = activ(fc(h, 'fc1', nh=128, init_scale=np.sqrt(2)))
-        return h
+        return h, None
     return network_fn
 
 
@@ -198,7 +190,7 @@ def conv_only(convs=[(32, 8, 4), (64, 4, 2), (64, 3, 1)], **conv_kwargs):
                                            activation_fn=tf.nn.relu,
                                            **conv_kwargs)
 
-        return out
+        return out, None
     return network_fn
 
 def _normalize_clip_observation(x, clip_range=[-5.0, 5.0]):
@@ -208,7 +200,6 @@ def _normalize_clip_observation(x, clip_range=[-5.0, 5.0]):
 
 
 def get_network_builder(name):
-    print("get Network builder called with :: ",name)
     """
     If you want to register your own network outside models.py, you just need:
 
@@ -221,9 +212,7 @@ def get_network_builder(name):
         return network_fn
 
     """
-    if callable(name):
-        return name
-    elif name in mapping:
+    if name in mapping:
         return mapping[name]
     else:
         raise ValueError('Unknown network type: {}'.format(name))

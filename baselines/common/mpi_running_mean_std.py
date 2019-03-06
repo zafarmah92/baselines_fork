@@ -1,8 +1,4 @@
-try:
-    from mpi4py import MPI
-except ImportError:
-    MPI = None
-
+from mpi4py import MPI
 import tensorflow as tf, baselines.common.tf_util as U, numpy as np
 
 class RunningMeanStd(object):
@@ -43,8 +39,7 @@ class RunningMeanStd(object):
         n = int(np.prod(self.shape))
         totalvec = np.zeros(n*2+1, 'float64')
         addvec = np.concatenate([x.sum(axis=0).ravel(), np.square(x).sum(axis=0).ravel(), np.array([len(x)],dtype='float64')])
-        if MPI is not None:
-            MPI.COMM_WORLD.Allreduce(addvec, totalvec, op=MPI.SUM)
+        MPI.COMM_WORLD.Allreduce(addvec, totalvec, op=MPI.SUM)
         self.incfiltparams(totalvec[0:n].reshape(self.shape), totalvec[n:2*n].reshape(self.shape), totalvec[2*n])
 
 @U.in_session

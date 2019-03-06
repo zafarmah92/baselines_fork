@@ -72,9 +72,9 @@ def plot_results(dirs, num_timesteps, xaxis, yaxis, task_name):
     plot_curves(xy_list, xaxis, yaxis, task_name)
 
 # Example usage in jupyter-notebook
-# from baselines import results_plotter
+# from baselines import log_viewer
 # %matplotlib inline
-# results_plotter.plot_results(["./log"], 10e6, results_plotter.X_TIMESTEPS, "Breakout")
+# log_viewer.plot_results(["./log"], 10e6, log_viewer.X_TIMESTEPS, "Breakout")
 # Here ./log is a directory containing the monitor.csv files
 
 def main():

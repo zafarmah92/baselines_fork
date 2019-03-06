@@ -54,7 +54,7 @@ class HumanOutputFormat(KVWriter, SeqWriter):
         # Write out the data
         dashes = '-' * (keywidth + valwidth + 7)
         lines = [dashes]
-        for (key, val) in sorted(key2str.items(), key=lambda kv: kv[0].lower()):
+        for (key, val) in sorted(key2str.items()):
             lines.append('| %s%s | %s%s |' % (
                 key,
                 ' ' * (keywidth - len(key)),
@@ -106,8 +106,7 @@ class CSVOutputFormat(KVWriter):
 
     def writekvs(self, kvs):
         # Add our current row to the history
-        extra_keys = list(kvs.keys() - self.keys)
-        extra_keys.sort()
+        extra_keys = kvs.keys() - self.keys
         if extra_keys:
             self.keys.extend(extra_keys)
             self.file.seek(0)
@@ -347,9 +346,9 @@ class Logger(object):
 
 def configure(dir=None, format_strs=None):
     if dir is None:
-        dir = os.getenv('OPENAI_LOGDIR')
+        dir = "/home/ahmedrashed/RR2018/OpenaiAdaptiveV2/a2cLog/"
     if dir is None:
-        dir = osp.join(tempfile.gettempdir(),
+        dir = osp.join("/home/ahmedrashed/RR2018/OpenaiAdaptiveV2/a2cLog/",
             datetime.datetime.now().strftime("openai-%Y-%m-%d-%H-%M-%S-%f"))
     assert isinstance(dir, str)
     os.makedirs(dir, exist_ok=True)

@@ -92,13 +92,13 @@ class PartialFrameStack(gym.Wrapper):
             for (i, frame) in enumerate(self.frames)], axis=2)
 
 class Downsample(gym.ObservationWrapper):
-    def __init__(self, env, ratio=None):
+    def __init__(self, env, ratio):
         """
         Downsample images by a factor of ratio
         """
         gym.ObservationWrapper.__init__(self, env)
         (oldh, oldw, oldc) = env.observation_space.shape
-        newshape = (84, 84, oldc)
+        newshape = (oldh//ratio, oldw//ratio, oldc)
         self.observation_space = spaces.Box(low=0, high=255,
             shape=newshape, dtype=np.uint8)
 
@@ -121,7 +121,6 @@ class Rgb2gray(gym.ObservationWrapper):
 
     def observation(self, frame):
         frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
-        # print("rgb to gray called !!!")
         return frame[:,:,None]
 
 
@@ -133,8 +132,10 @@ class MovieRecord(gym.Wrapper):
         self.epcount = 0
     def reset(self):
         if self.epcount % self.k == 0:
+            print('saving movie this episode', self.savedir)
             self.env.unwrapped.movie_path = self.savedir
         else:
+            print('not saving this episode')
             self.env.unwrapped.movie_path = None
             self.env.unwrapped.movie = None
         self.epcount += 1
@@ -223,7 +224,6 @@ def make_retro(*, game, state, max_episode_steps, **kwargs):
     return env
 
 def wrap_deepmind_retro(env, scale=True, frame_stack=4):
-    print("\n\n\n Is this retro called \n\n\n")
     """
     Configure environment for retro games, using config similar to DeepMind-style Atari in wrap_deepmind
     """

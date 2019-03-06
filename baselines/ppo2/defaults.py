@@ -20,6 +20,3 @@ def atari():
         lr=lambda f : f * 2.5e-4,
         cliprange=lambda f : f * 0.1,
     )
-
-def retro():
-    return atari()

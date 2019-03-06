@@ -4,6 +4,7 @@ import baselines.common.tf_util as U
 import tensorflow as tf, numpy as np
 import time
 from baselines.common import colorize
+from mpi4py import MPI
 from collections import deque
 from baselines.common import set_global_seeds
 from baselines.common.mpi_adam import MpiAdam
@@ -11,11 +12,6 @@ from baselines.common.cg import cg
 from baselines.common.input import observation_placeholder
 from baselines.common.policies import build_policy
 from contextlib import contextmanager
-
-try:
-    from mpi4py import MPI
-except ImportError:
-    MPI = None
 
 def traj_segment_generator(pi, env, horizon, stochastic):
     # Initialize state variables
@@ -150,12 +146,9 @@ def learn(*,
 
     '''
 
-    if MPI is not None:
-        nworkers = MPI.COMM_WORLD.Get_size()
-        rank = MPI.COMM_WORLD.Get_rank()
-    else:
-        nworkers = 1
-        rank = 0
+
+    nworkers = MPI.COMM_WORLD.Get_size()
+    rank = MPI.COMM_WORLD.Get_rank()
 
     cpus_per_worker = 1
     U.get_session(config=tf.ConfigProto(
@@ -244,13 +237,9 @@ def learn(*,
 
     def allmean(x):
         assert isinstance(x, np.ndarray)
-        if MPI is not None:
-            out = np.empty_like(x)
-            MPI.COMM_WORLD.Allreduce(x, out, op=MPI.SUM)
-            out /= nworkers
-        else:
-            out = np.copy(x)
-
+        out = np.empty_like(x)
+        MPI.COMM_WORLD.Allreduce(x, out, op=MPI.SUM)
+        out /= nworkers
         return out
 
     U.initialize()
@@ -258,9 +247,7 @@ def learn(*,
         pi.load(load_path)
 
     th_init = get_flat()
-    if MPI is not None:
-        MPI.COMM_WORLD.Bcast(th_init, root=0)
-
+    MPI.COMM_WORLD.Bcast(th_init, root=0)
     set_from_flat(th_init)
     vfadam.sync()
     print("Init param sum", th_init.sum(), flush=True)
@@ -366,11 +353,7 @@ def learn(*,
         logger.record_tabular("ev_tdlam_before", explained_variance(vpredbefore, tdlamret))
 
         lrlocal = (seg["ep_lens"], seg["ep_rets"]) # local values
-        if MPI is not None:
-            listoflrpairs = MPI.COMM_WORLD.allgather(lrlocal) # list of tuples
-        else:
-            listoflrpairs = [lrlocal]
-
+        listoflrpairs = MPI.COMM_WORLD.allgather(lrlocal) # list of tuples
         lens, rews = map(flatten_lists, zip(*listoflrpairs))
         lenbuffer.extend(lens)
         rewbuffer.extend(rews)
