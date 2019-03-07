@@ -209,7 +209,7 @@ def learn(
     # Start total timer
     tstart = time.time()
     DPD=0.0
-    delta=0.0001
+    delta=0.00001
     for update in range(1, total_timesteps//nbatch+1):
         # Get mini batch of experiences
 
