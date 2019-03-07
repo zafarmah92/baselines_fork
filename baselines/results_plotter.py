@@ -5,7 +5,7 @@ matplotlib.use('TkAgg') # Can change to 'Agg' for non-interactive mode
 import matplotlib.pyplot as plt
 plt.rcParams['svg.fonttype'] = 'none'
 
-from baselines.bench.monitor import load_results
+from baselines.common import plot_util
 
 X_TIMESTEPS = 'timesteps'
 X_EPISODES = 'episodes'
@@ -50,7 +50,7 @@ def plot_curves(xy_list, xaxis, yaxis, title):
     maxx = max(xy[0][-1] for xy in xy_list)
     minx = 0
     for (i, (x, y)) in enumerate(xy_list):
-        color = COLORS[i]
+        color = COLORS[i % len(COLORS)]
         plt.scatter(x, y, s=2)
         x, y_mean = window_func(x, y, EPISODES_WINDOW, np.mean) #So returns average of last EPISODE_WINDOW episodes
         plt.plot(x, y_mean, color=color)
@@ -62,14 +62,9 @@ def plot_curves(xy_list, xaxis, yaxis, title):
     fig.canvas.mpl_connect('resize_event', lambda event: plt.tight_layout())
     plt.grid(True)
 
-def plot_results(dirs, num_timesteps, xaxis, yaxis, task_name):
-    tslist = []
-    for dir in dirs:
-        ts = load_results(dir)
-        ts = ts[ts.l.cumsum() <= num_timesteps]
-        tslist.append(ts)
-    xy_list = [ts2xy(ts, xaxis, yaxis) for ts in tslist]
-    plot_curves(xy_list, xaxis, yaxis, task_name)
+def plot_results(dirs, num_timesteps=10e6, xaxis=X_TIMESTEPS, yaxis=Y_REWARD, title='', split_fn=split_by_task):
+    results = plot_util.load_results(dirs)
+    plot_util.plot_results(results, xy_fn=lambda r: ts2xy(r['monitor'], xaxis, yaxis), split_fn=split_fn, average_group=True, resample=int(1e6))
 
 # Example usage in jupyter-notebook
 # from baselines import log_viewer
