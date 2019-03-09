@@ -137,6 +137,7 @@ def learn(
     gamma=0.99,
     log_interval=5000,
     load_path=None,
+    delta=0.01,
     **network_kwargs):
 
     '''
@@ -209,7 +210,8 @@ def learn(
     # Start total timer
     tstart = time.time()
     DPD=0.0
-    delta=0.01
+    # delta=0.01
+    print("delta :" ,delta )
     for update in range(1, total_timesteps//nbatch+1):
         # Get mini batch of experiences
 
