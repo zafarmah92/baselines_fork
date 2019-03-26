@@ -221,7 +221,7 @@ def learn(
                 cond=1
 
             sigma=sigmaUpdate(condition=cond,sigma=sigma)
-            print("Present Sigma : ",sigma)
+            # print("Present Sigma : ",sigma)
         obs, states, rewards, masks, actions, values,DPD = runner.run(Sigma=sigma)
 
         policy_loss, value_loss, policy_entropy = model.train(obs, states, rewards, masks, actions, values)
@@ -242,6 +242,7 @@ def learn(
             logger.record_tabular("policy_loss",  float(policy_loss))
             logger.record_tabular("Total_Loss",  float(policy_loss)+float(value_loss))
             logger.record_tabular("sum rewards",  np.sum(rewards))
+            logger.record_tabular("sigma " , sigma)
             logger.dump_tabular()
             now = datetime.datetime.now()
             # model.save("/home/ahmedrashed/RR2018/OpenaiAdaptiveV2/a2cSave/a2cSave"+str(update))

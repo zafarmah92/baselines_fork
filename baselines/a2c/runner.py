@@ -2,6 +2,8 @@ import numpy as np
 from baselines.a2c.utils import discount_with_dones
 from baselines.common.runners import AbstractEnvRunner
 
+import random
+
 class Runner(AbstractEnvRunner):
     """
     We use this class to generate batches of experiences
@@ -33,17 +35,17 @@ class Runner(AbstractEnvRunner):
             if(n==0):
                 
                 actions, values, states,tmp, _ = self.model.step(self.obs,Noise=1.0,Newbie=1.0,sigma=Sigma, S=self.states, M=self.dones)
-                print(" n == 0 ::" ,_)
+                # print(" n == 0 ::" ,_)
             elif(n==(self.nsteps-1)):
-                print(" n {} , n_steps {}".format(n,self.nsteps-1))
+                # print(" n {} , n_steps {}".format(n,self.nsteps-1))
                 actions, values, states,tmp, DPDarray = self.model.step(self.obs,Noise=1.0,Newbie=0.0,sigma=Sigma, S=self.states, M=self.dones)
                 # print(DPDarray[0]) , single output
-                print("DPDarray : ", DPDarray)
-                DPD=DPDarray[0]
+                # print("DPDarray : ", DPDarray)
+                DPD=DPDarray[random.randint(0,len(DPDarray)-1)]
             else:
                 actions, values, states, tmp,_ = self.model.step(self.obs,Noise=1.0,Newbie=0.0,sigma=Sigma, S=self.states, M=self.dones)
 
-                print(" else n :",n , "  ",_)
+                # print(" else n :",n , "  ",_)
 
             # Append the experiences
             mb_obs.append(np.copy(self.obs))
