@@ -61,7 +61,7 @@ class CategoricalPdType(PdType):
         return CategoricalPd
     def pdfromlatent(self, latent_vector, init_scale=1.0, init_bias=0.0,Newbie=1.0,Noise=0.0,sigma=0.0):
         pdparam,fakepdparm = fcNoisy(latent_vector, 'pi', self.ncat, init_scale=init_scale, init_bias=init_bias,newbie=Newbie,noise=Noise,sigma=sigma)
-        return self.pdfromflat(pdparam), pdparam,fakepdparm
+        return self.pdfromflat(pdparam), pdparam, fakepdparm # pi' , pi 
 
     def param_shape(self):
         return [self.ncat]

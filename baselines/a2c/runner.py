@@ -31,14 +31,19 @@ class Runner(AbstractEnvRunner):
             # Given observations, take action and value (V(s))
             # We already have self.obs because Runner superclass run self.obs[:] = env.reset() on init
             if(n==0):
+                
                 actions, values, states,tmp, _ = self.model.step(self.obs,Noise=1.0,Newbie=1.0,sigma=Sigma, S=self.states, M=self.dones)
+                print(" n == 0 ::" ,_)
             elif(n==(self.nsteps-1)):
+                print(" n {} , n_steps {}".format(n,self.nsteps-1))
                 actions, values, states,tmp, DPDarray = self.model.step(self.obs,Noise=1.0,Newbie=0.0,sigma=Sigma, S=self.states, M=self.dones)
-                # print(DPDarray[0])
+                # print(DPDarray[0]) , single output
+                print("DPDarray : ", DPDarray)
                 DPD=DPDarray[0]
             else:
                 actions, values, states, tmp,_ = self.model.step(self.obs,Noise=1.0,Newbie=0.0,sigma=Sigma, S=self.states, M=self.dones)
 
+                print(" else n :",n , "  ",_)
 
             # Append the experiences
             mb_obs.append(np.copy(self.obs))

@@ -49,7 +49,7 @@ class PolicyWithValue(object):
         # Based on the action space, will select what probability distribution type
         self.pdtype = make_pdtype(env.action_space)
 
-        self.pd, self.pi,self.pdNoNoise = self.pdtype.pdfromlatent(latent, init_scale=0.01,Newbie=self.newbie,Noise=self.noise,sigma=self.Sigma)
+        self.pd,self.pdNoNoise, self.pi = self.pdtype.pdfromlatent(latent, init_scale=0.01,Newbie=self.newbie,Noise=self.noise,sigma=self.Sigma)
         
         self.DPD=self.kl(tf.nn.softmax(self.pi) ,tf.nn.softmax(self.pdNoNoise)) #RAFAEL
         # Take an action

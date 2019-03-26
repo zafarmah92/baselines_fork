@@ -219,7 +219,9 @@ def learn(
             cond=0
             if DPD < delta:
                 cond=1
+
             sigma=sigmaUpdate(condition=cond,sigma=sigma)
+            print("Present Sigma : ",sigma)
         obs, states, rewards, masks, actions, values,DPD = runner.run(Sigma=sigma)
 
         policy_loss, value_loss, policy_entropy = model.train(obs, states, rewards, masks, actions, values)
